@@ -1,0 +1,22 @@
+{% if progress.running %}
+<div id="import-inline-progress"
+     hx-get="/import/progress-inline"
+     hx-trigger="every 1s"
+     hx-swap="outerHTML"
+     style="margin-top: 8px; font-size: 0.85em; color: var(--muted);">
+    <p style="margin: 0 0 4px;">{{ progress.step }}</p>
+    {% if progress.total > 0 %}
+    <div class="progress-bar-track" style="height: 6px;">
+        <div class="progress-bar-fill" style="width: {{ (progress.current / progress.total * 100) | round(1) }}%"></div>
+    </div>
+    <p style="margin: 2px 0 0; font-size: 0.8em;">{{ progress.current }} / {{ progress.total }}</p>
+    {% endif %}
+</div>
+{% elif progress.done %}
+<div id="import-inline-progress">
+    <p style="margin-top: 8px; font-size: 0.85em; color: var(--muted);">Done. Refreshing...</p>
+    <script>setTimeout(() => window.location.reload(), 500);</script>
+</div>
+{% else %}
+<div id="import-inline-progress"></div>
+{% endif %}

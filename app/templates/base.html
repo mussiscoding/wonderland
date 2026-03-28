@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wonderland</title>
+    <script src="/static/htmx.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.8em; margin-bottom: 4px; }
+        h1 span { color: #1db954; }
+        .subtitle { color: #888; margin-bottom: 24px; }
+
+        nav { display: flex; gap: 16px; margin-bottom: 24px; }
+        nav a {
+            color: #1db954;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        nav a:hover { background: #1a1a1a; }
+
+        .controls {
+            display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+            align-items: center;
+        }
+        input[type="text"] {
+            background: #1a1a1a; border: 1px solid #333; color: #e0e0e0;
+            padding: 8px 12px; border-radius: 4px; font-size: 14px;
+            width: 250px;
+        }
+        input[type="text"]:focus { outline: none; border-color: #1db954; }
+        select {
+            background: #1a1a1a; border: 1px solid #333; color: #e0e0e0;
+            padding: 8px 12px; border-radius: 4px; font-size: 14px;
+        }
+        .btn {
+            background: #1db954; color: #000; border: none; padding: 8px 16px;
+            border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
+            text-decoration: none; display: inline-block;
+        }
+        .btn:hover { background: #1ed760; }
+        .btn-outline {
+            background: transparent; border: 1px solid #333; color: #e0e0e0;
+        }
+        .btn-outline:hover { border-color: #1db954; color: #1db954; }
+
+        .btn-tiny {
+            background: #1a1a1a; border: 1px solid #333; color: #888;
+            padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;
+            font-weight: 600;
+        }
+        .btn-tiny:hover { border-color: #1db954; color: #1db954; }
+        .btn-tiny.active { background: #1db954; color: #000; border-color: #1db954; }
+        .btn-tiny.active-adj { background: #f0b429; color: #000; border-color: #f0b429; }
+        .btn-tiny.active-other { background: #444; color: #fff; border-color: #444; }
+
+        .count { color: #888; font-size: 14px; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            text-align: left; padding: 10px 12px; border-bottom: 2px solid #222;
+            color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        td { padding: 10px 12px; border-bottom: 1px solid #1a1a1a; }
+        tr:hover { background: #111; }
+
+        .score {
+            font-weight: 700; font-size: 16px;
+            display: inline-block; min-width: 40px; text-align: center;
+        }
+        .score-high { color: #1db954; }
+        .score-med { color: #f0b429; }
+        .score-low { color: #666; }
+
+        .genre-tag {
+            display: inline-block; background: #1a1a1a; border: 1px solid #333;
+            padding: 2px 8px; border-radius: 12px; font-size: 11px; margin: 1px 2px;
+            color: #aaa;
+        }
+        .genre-tag.dance { border-color: #1db954; color: #1db954; }
+        .genre-tag.adjacent { border-color: #f0b429; color: #f0b429; }
+
+        .signals { font-size: 12px; color: #666; }
+        .signals span { margin-right: 8px; }
+
+        .divider {
+            border-top: 2px dashed #333; margin: 4px 0;
+        }
+        .divider td {
+            padding: 8px 12px; color: #666; font-size: 12px; font-style: italic;
+            border-bottom: none;
+        }
+
+        .empty-state {
+            text-align: center; padding: 60px 20px; color: #666;
+        }
+        .empty-state h2 { color: #888; margin-bottom: 12px; }
+
+        .progress-step { color: #888; margin-bottom: 16px; }
+        .progress-bar-track {
+            width: 100%; max-width: 400px; height: 8px; background: #1a1a1a;
+            border-radius: 4px; margin: 0 auto 12px; overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; background: #1db954; border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .progress-count { color: #666; font-size: 14px; }
+
+        a.sortable {
+            color: #888; text-decoration: none; cursor: pointer;
+        }
+        a.sortable:hover { color: #1db954; }
+
+        .htmx-indicator { opacity: 0; transition: opacity 0.2s; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span>wonderland</span></h1>
+        <p class="subtitle">find gigs you'll actually go to</p>
+        <nav>
+            <a href="/artists">Artists</a>
+            <a href="/events">Events</a>
+            <a href="/genres">Genres</a>
+        </nav>
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

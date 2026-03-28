@@ -1,0 +1,34 @@
+<tr id="genre-{{ genre.id }}">
+    <td>{{ genre.name }}</td>
+    <td>{{ artist_count }}</td>
+    <td>
+        {% if genre.category == "dance" %}
+        <span class="genre-tag dance">dance</span>
+        {% elif genre.category == "adjacent" %}
+        <span class="genre-tag" style="border-color: #f0b429; color: #f0b429;">adjacent</span>
+        {% elif genre.category == "other" %}
+        <span class="genre-tag">other</span>
+        {% else %}
+        <span class="genre-tag" style="border-color: #666; color: #666;">unclassified</span>
+        {% endif %}
+    </td>
+    <td>
+        <div style="display: flex; gap: 4px;">
+            <form hx-post="/genres/{{ genre.id }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
+                  action="/genres/{{ genre.id }}/classify" method="post" style="display:inline;">
+                <input type="hidden" name="category" value="dance">
+                <button type="submit" class="btn-tiny {% if genre.category == 'dance' %}active{% endif %}">D</button>
+            </form>
+            <form hx-post="/genres/{{ genre.id }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
+                  action="/genres/{{ genre.id }}/classify" method="post" style="display:inline;">
+                <input type="hidden" name="category" value="adjacent">
+                <button type="submit" class="btn-tiny {% if genre.category == 'adjacent' %}active-adj{% endif %}">A</button>
+            </form>
+            <form hx-post="/genres/{{ genre.id }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
+                  action="/genres/{{ genre.id }}/classify" method="post" style="display:inline;">
+                <input type="hidden" name="category" value="other">
+                <button type="submit" class="btn-tiny {% if genre.category == 'other' %}active-other{% endif %}">O</button>
+            </form>
+        </div>
+    </td>
+</tr>

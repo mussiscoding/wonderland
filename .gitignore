@@ -1,0 +1,12 @@
+data/*.db
+.env
+__pycache__/
+*.pyc
+.spotipy_cache
+.spotify_cache
+.cache-*
+*.egg-info/
+dist/
+build/
+.venv/
+venv/

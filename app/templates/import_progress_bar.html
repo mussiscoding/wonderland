@@ -1,0 +1,11 @@
+{% if progress.done %}
+<script>window.location.href = "/artists";</script>
+{% else %}
+<p class="progress-step">{{ progress.step }}</p>
+{% if progress.total > 0 %}
+<div class="progress-bar-track">
+    <div class="progress-bar-fill" style="width: {{ (progress.current / progress.total * 100) | round(1) }}%"></div>
+</div>
+<p class="progress-count">{{ progress.current }} / {{ progress.total }}</p>
+{% endif %}
+{% endif %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="controls">
+    <form action="/genres" method="get" style="display: flex; gap: 12px; align-items: center;">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search genres...">
+        <select name="category">
+            <option value="" {% if not category %}selected{% endif %}>All categories</option>
+            <option value="unclassified" {% if category == "unclassified" %}selected{% endif %}>Unclassified</option>
+            <option value="dance" {% if category == "dance" %}selected{% endif %}>Dance</option>
+            <option value="adjacent" {% if category == "adjacent" %}selected{% endif %}>Adjacent</option>
+            <option value="other" {% if category == "other" %}selected{% endif %}>Other</option>
+        </select>
+        <button type="submit" class="btn btn-outline">Filter</button>
+    </form>
+
+    <form action="/genres/rescore" method="post" style="margin-left: auto;">
+        <button type="submit" class="btn">Rescore Artists</button>
+    </form>
+</div>
+
+<p class="count">{{ total_count }} genres</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Genre</th>
+            <th>
+                {% if sort == "artists_desc" %}
+                    {% set next_sort = "artists_asc" %}
+                {% elif sort == "artists_asc" %}
+                    {% set next_sort = "" %}
+                {% else %}
+                    {% set next_sort = "artists_desc" %}
+                {% endif %}
+                <a href="/genres?q={{ q }}&category={{ category }}&sort={{ next_sort }}" class="sortable">
+                    Artists
+                    {% if sort == "artists_desc" %} ▼{% elif sort == "artists_asc" %} ▲{% endif %}
+                </a>
+            </th>
+            <th>Category</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for genre in genres %}
+        {% set artist_count = genre_counts.get(genre.name, 0) %}
+        {% include "genre_row.html" %}
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

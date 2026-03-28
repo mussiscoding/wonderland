@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="empty-state">
+    <h2>Importing artists...</h2>
+    <div id="progress-area"
+         hx-get="/import/progress-bar"
+         hx-trigger="load, every 1s"
+         hx-swap="innerHTML">
+    </div>
+</div>
+{% endblock %}

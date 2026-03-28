@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="controls">
+    <form method="get" action="/events" style="display:flex;gap:12px;align-items:center;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
+        <select name="sort" onchange="this.form.submit()">
+            <option value="score" {{ 'selected' if sort == 'score' }}>Sort by score</option>
+            <option value="date" {{ 'selected' if sort == 'date' }}>Sort by date</option>
+        </select>
+        {% if show_all %}
+        <input type="hidden" name="show_all" value="1">
+        {% endif %}
+    </form>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+        {% if show_all %}
+        <a href="/events?sort={{ sort }}&q={{ q }}" class="btn btn-outline">Matched only</a>
+        {% else %}
+        <a href="/events?sort={{ sort }}&q={{ q }}&show_all=1" class="btn btn-outline">Show all</a>
+        {% endif %}
+        <form method="post" action="/events/fetch">
+            <button class="btn" type="submit">Fetch Events</button>
+        </form>
+    </div>
+</div>
+
+<span class="count">{{ total_count }} event{{ 's' if total_count != 1 }}</span>
+
+{% if events %}
+<table>
+    <thead>
+        <tr>
+            <th style="width:50px;">Score</th>
+            <th>Date</th>
+            <th>Event</th>
+            <th>Venue</th>
+            <th>Matched Artists</th>
+            <th>Lineup</th>
+            <th>Links</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for event in events %}
+        {% set score = event_scores.get(event.id, 0) %}
+        {% set event_matches = matches_by_event.get(event.id, []) %}
+        {% set matched_names = event_matches | map(attribute='matched_name') | map('lower') | list %}
+        <tr>
+            <td>
+                {% if score > 0 %}
+                <span class="score {{ 'score-high' if score >= 50 else ('score-med' if score >= 20 else 'score-low') }}">
+                    {{ score | int }}
+                </span>
+                {% else %}
+                <span class="score score-low">—</span>
+                {% endif %}
+            </td>
+            <td style="white-space:nowrap;">{{ event.date.strftime('%a %d %b') }}</td>
+            <td>{{ event.title }}</td>
+            <td>{{ event.venue_name }}</td>
+            <td>
+                {% for m in event_matches %}
+                <span class="genre-tag dance" title="{{ m.match_type }} match ({{ m.confidence | int }}%) for '{{ m.matched_name }}'">
+                    {{ m.artist.name }}
+                    <span style="opacity:0.6;font-size:10px;">{{ m.artist.effective_score | int }}</span>
+                </span>
+                {% endfor %}
+            </td>
+            <td>
+                {% for artist_name in (event.lineup_parsed or []) %}
+                {% if artist_name | lower in matched_names %}
+                <span class="genre-tag dance">{{ artist_name }}</span>
+                {% else %}
+                <span class="genre-tag">{{ artist_name }}</span>
+                {% endif %}
+                {% endfor %}
+            </td>
+            <td style="white-space:nowrap;">
+                {% set sources = sources_by_event.get(event.id, []) %}
+                {% for src in sources %}
+                    {% if src.source_url %}
+                    <a href="{{ src.source_url }}" target="_blank" class="btn-tiny">{{ src.source_name }}</a>
+                    {% endif %}
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <h2>No events found</h2>
+    {% if not show_all %}
+    <p>No matched events yet. <a href="/events?show_all=1" style="color:#1db954;">Show all events</a> or click "Fetch Events" to refresh.</p>
+    {% else %}
+    <p>Click "Fetch Events" to search for upcoming London gigs.</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

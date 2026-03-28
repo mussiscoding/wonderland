@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{% if not authenticated %}
+<div class="empty-state">
+    <h2>Connect Spotify to get started</h2>
+    <p>We'll pull your artists, score them, and help you find gigs.</p>
+    <br>
+    <a href="/login" class="btn">Connect Spotify</a>
+</div>
+
+{% elif total_count == 0 %}
+<div class="empty-state">
+    <h2>No artists imported yet</h2>
+    <p>Hit import to pull your artists from Spotify.</p>
+    <br>
+    <form action="/import" method="post">
+        <button type="submit" class="btn">Import Artists</button>
+    </form>
+</div>
+
+{% else %}
+
+<div class="controls">
+    <form hx-get="/artists" hx-target="#artist-results" hx-select="#artist-results" hx-swap="outerHTML"
+          hx-trigger="input changed delay:300ms from:find input, input changed delay:300ms from:find select, submit"
+          hx-push-url="true"
+          action="/artists" method="get" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search artists...">
+        <input type="text" name="genre" value="{{ genre }}" placeholder="Filter by genre...">
+        <select name="sort">
+            <option value="score" {% if sort == "score" %}selected{% endif %}>Sort by score</option>
+            <option value="name" {% if sort == "name" %}selected{% endif %}>Sort by name</option>
+        </select>
+        <button type="submit" class="btn btn-outline">Filter</button>
+    </form>
+
+    <div style="margin-left: auto; text-align: right;">
+        <form hx-post="/import" hx-target="#import-inline-progress" hx-swap="outerHTML">
+            <button type="submit" class="btn btn-outline">Re-import</button>
+        </form>
+        {% if import_progress.running %}
+        <div id="import-inline-progress"
+             hx-get="/import/progress-inline"
+             hx-trigger="load, every 1s"
+             hx-swap="outerHTML"></div>
+        {% else %}
+        <div id="import-inline-progress"></div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="artist-results">
+<p class="count">{{ total_count }} artists</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Score</th>
+            <th>Artist</th>
+            <th>Genres</th>
+            <th>Signals</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set divider_shown = [false] %}
+        {% for artist in artists %}
+
+        {# Show divider between "likely relevant" and "probably not" at score 30 #}
+        {% if sort == "score" and not divider_shown[0] and artist.effective_score < 30 %}
+        <tr class="divider">
+            <td colspan="4">below this line: probably not going to dance to these</td>
+        </tr>
+        {% set _ = divider_shown.__setitem__(0, true) %}
+        {% endif %}
+
+        <tr>
+            <td>
+                {% set score = artist.effective_score %}
+                <span class="score {% if score >= 50 %}score-high{% elif score >= 30 %}score-med{% else %}score-low{% endif %}">
+                    {{ score | round(0) | int }}
+                </span>
+            </td>
+            <td>{{ artist.name }}</td>
+            <td>
+                {% for g in (artist.genres or [])[:5] %}
+                {% set cat = genre_map.get(g.lower(), "unclassified") %}
+                <span class="genre-tag {% if cat == 'dance' %}dance{% elif cat == 'adjacent' %}adjacent{% endif %}">{{ g }}</span>
+                {% endfor %}
+                {% if (artist.genres or []) | length > 5 %}
+                <span class="genre-tag">+{{ (artist.genres | length) - 5 }}</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="signals">
+                    {% if artist.source_signals.get("followed") %}<span>followed</span>{% endif %}
+                    {% if artist.source_signals.get("saved_tracks") %}<span>{{ artist.source_signals.saved_tracks }} saved</span>{% endif %}
+                    {% if artist.source_signals.get("intentional_plays") %}<span>{{ artist.source_signals.intentional_plays }} intentional</span>{% endif %}
+                    {% if artist.source_signals.get("playlist_appearances") %}<span>{{ artist.source_signals.playlist_appearances }} playlists</span>{% endif %}
+                    {% if artist.source_signals.get("top_artist") %}<span>top artist</span>{% endif %}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% endif %}
+
+{% endblock %}
