@@ -109,19 +109,11 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
             if existing and existing.genres:
                 data["genres"] = existing.genres
 
-    # Backfill genres from MusicBrainz for artists still missing them
-    logger.info("Backfilling missing genres...")
-    _backfill_genres(sp, artist_data, session, existing_by_sid, progress)
-
-    progress["step"] = "Syncing genres and scoring..."
-
-    # Ensure all genres exist in the classification table
-    _sync_genre_classifications(session, artist_data)
-
-    # Create/update UserArtist records with per-user scores
+    # Create/update UserArtist records NOW (before slow genre backfill)
+    # so the user can see their artists immediately with initial scores.
+    progress["step"] = "Scoring artists..."
     genre_map = get_genre_map(session)
 
-    # Load existing UserArtist records for this user
     existing_ua = {
         ua.artist_id: ua for ua in session.exec(
             select(UserArtist).where(UserArtist.user_id == user_id)
@@ -145,6 +137,36 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
                 source_signals=dict(data["signals"]),
                 auto_score=auto_score,
             )
+            session.add(ua)
+
+    session.commit()
+
+    # Backfill genres from MusicBrainz for artists still missing them
+    # (slow — but artists are already visible to the user above)
+    logger.info("Backfilling missing genres...")
+    _backfill_genres(sp, artist_data, session, existing_by_sid, progress)
+
+    # Ensure all genres exist in the classification table
+    _sync_genre_classifications(session, artist_data)
+
+    # Rescore with updated genres
+    progress["step"] = "Rescoring with genres..."
+    genre_map = get_genre_map(session)
+
+    existing_ua = {
+        ua.artist_id: ua for ua in session.exec(
+            select(UserArtist).where(UserArtist.user_id == user_id)
+        ).all()
+    }
+
+    for spotify_id, data in artist_data.items():
+        artist = existing_by_sid.get(spotify_id)
+        if not artist:
+            continue
+        genres = data["genres"] or artist.genres or []
+        ua = existing_ua.get(artist.id)
+        if ua:
+            ua.auto_score = compute_auto_score(data["signals"], genres, genre_map)
             session.add(ua)
 
     session.commit()
