@@ -118,6 +118,7 @@ def _add_source(session: Session, event: Event, raw: dict):
         source_id=raw.get("source_id"),
         source_url=raw.get("source_url"),
         ticket_url=raw.get("ticket_url"),
+        price=raw.get("price"),
     )
     session.add(source)
 

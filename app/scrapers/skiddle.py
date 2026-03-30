@@ -113,7 +113,15 @@ def _normalise_event(event: dict) -> dict | None:
     event_id = str(event.get("id", ""))
     link = event.get("link", "")
 
+    price = None
     entry_price = event.get("entryprice")
+    if entry_price:
+        try:
+            p = float(entry_price)
+            if p > 0:
+                price = f"£{p:.0f}" if p == int(p) else f"£{p:.2f}"
+        except (ValueError, TypeError):
+            pass
 
     return {
         "title": title,
@@ -126,5 +134,5 @@ def _normalise_event(event: dict) -> dict | None:
         "source_id": event_id,
         "source_url": link,
         "ticket_url": link,
-        "price": entry_price,
+        "price": price,
     }

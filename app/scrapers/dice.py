@@ -107,9 +107,8 @@ def _normalise_event(event: dict) -> dict | None:
     if ticket_types:
         prices = [t["price"]["total"] for t in ticket_types if t.get("price", {}).get("total")]
         if prices:
-            currency = event.get("currency", "GBP")
             min_price = min(prices) / 100
-            price = f"{currency} {min_price:.2f}"
+            price = f"£{min_price:.0f}" if min_price == int(min_price) else f"£{min_price:.2f}"
 
     return {
         "title": title,
