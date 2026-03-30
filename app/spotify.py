@@ -112,8 +112,39 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
     # Create/update UserArtist records NOW (before slow genre backfill)
     # so the user can see their artists immediately with initial scores.
     progress["step"] = "Scoring artists..."
-    genre_map = get_genre_map(session)
+    _upsert_user_artists(session, user_id, artist_data, existing_by_sid)
 
+    # Backfill genres from MusicBrainz for artists still missing them
+    # (slow — but artists are already visible to the user above)
+    logger.info("Backfilling missing genres...")
+    _backfill_genres(sp, artist_data, session, existing_by_sid, progress)
+
+    # Ensure all genres exist in the classification table
+    _sync_genre_classifications(session, artist_data)
+
+    # Rescore with updated genres
+    progress["step"] = "Rescoring with genres..."
+    _upsert_user_artists(session, user_id, artist_data, existing_by_sid)
+
+    progress.update(running=False, step="Done", done=True)
+
+    summary = {
+        "total_artists": len(artist_data),
+        "new": new_count,
+        "updated": updated_count,
+    }
+    logger.info(f"Import complete: {summary}")
+    return summary
+
+
+def _upsert_user_artists(
+    session: Session,
+    user_id: int,
+    artist_data: dict,
+    existing_by_sid: dict,
+) -> None:
+    """Create or update UserArtist records with current scores."""
+    genre_map = get_genre_map(session)
     existing_ua = {
         ua.artist_id: ua for ua in session.exec(
             select(UserArtist).where(UserArtist.user_id == user_id)
@@ -121,7 +152,9 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
     }
 
     for spotify_id, data in artist_data.items():
-        artist = existing_by_sid[spotify_id]
+        artist = existing_by_sid.get(spotify_id)
+        if not artist:
+            continue
         genres = data["genres"] or artist.genres or []
         auto_score = compute_auto_score(data["signals"], genres, genre_map)
 
@@ -140,46 +173,6 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
             session.add(ua)
 
     session.commit()
-
-    # Backfill genres from MusicBrainz for artists still missing them
-    # (slow — but artists are already visible to the user above)
-    logger.info("Backfilling missing genres...")
-    _backfill_genres(sp, artist_data, session, existing_by_sid, progress)
-
-    # Ensure all genres exist in the classification table
-    _sync_genre_classifications(session, artist_data)
-
-    # Rescore with updated genres
-    progress["step"] = "Rescoring with genres..."
-    genre_map = get_genre_map(session)
-
-    existing_ua = {
-        ua.artist_id: ua for ua in session.exec(
-            select(UserArtist).where(UserArtist.user_id == user_id)
-        ).all()
-    }
-
-    for spotify_id, data in artist_data.items():
-        artist = existing_by_sid.get(spotify_id)
-        if not artist:
-            continue
-        genres = data["genres"] or artist.genres or []
-        ua = existing_ua.get(artist.id)
-        if ua:
-            ua.auto_score = compute_auto_score(data["signals"], genres, genre_map)
-            session.add(ua)
-
-    session.commit()
-
-    progress.update(running=False, step="Done", done=True)
-
-    summary = {
-        "total_artists": len(artist_data),
-        "new": new_count,
-        "updated": updated_count,
-    }
-    logger.info(f"Import complete: {summary}")
-    return summary
 
 
 def _sync_genre_classifications(session: Session, artist_data: dict):

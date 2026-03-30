@@ -43,8 +43,7 @@ class DatabaseCacheHandler(CacheHandler):
         user = self.db_session.get(User, self.user_id)
         if not user:
             return
-        encrypted = _fernet.encrypt(json.dumps(token_info).encode()).decode()
-        user.encrypted_token_info = encrypted
+        user.encrypted_token_info = encrypt_token_info(token_info)
         self.db_session.add(user)
         self.db_session.commit()
 

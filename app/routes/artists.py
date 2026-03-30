@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_EMPTY_PROGRESS = {"running": False, "done": False, "step": "", "current": 0, "total": 0}
+
+
+def _user_progress(user) -> dict:
+    """Get progress dict for user, or empty default if no user."""
+    return _get_progress(user.id) if user else _EMPTY_PROGRESS
+
 
 def _run_import_background(sp, user_id: int):
     """Run import in a background thread with its own DB session."""
@@ -58,7 +65,7 @@ def run_import(request: Request, session: Session = Depends(get_session)):
 @router.get("/import/progress", response_class=HTMLResponse)
 def show_progress(request: Request, session: Session = Depends(get_session)):
     user = get_current_user(request, session)
-    progress = _get_progress(user.id) if user else {"running": False, "done": False, "step": "", "current": 0, "total": 0}
+    progress = _user_progress(user)
 
     if progress["done"] and not progress["running"]:
         return RedirectResponse("/artists", status_code=303)
@@ -73,7 +80,7 @@ def show_progress(request: Request, session: Session = Depends(get_session)):
 @router.get("/import/progress-bar", response_class=HTMLResponse)
 def progress_bar(request: Request, session: Session = Depends(get_session)):
     user = get_current_user(request, session)
-    progress = _get_progress(user.id) if user else {"running": False, "done": False, "step": "", "current": 0, "total": 0}
+    progress = _user_progress(user)
     return templates.TemplateResponse(
         request,
         "import_progress_bar.html",
@@ -84,7 +91,7 @@ def progress_bar(request: Request, session: Session = Depends(get_session)):
 @router.get("/import/progress-inline", response_class=HTMLResponse)
 def progress_inline(request: Request, session: Session = Depends(get_session)):
     user = get_current_user(request, session)
-    progress = _get_progress(user.id) if user else {"running": False, "done": False, "step": "", "current": 0, "total": 0}
+    progress = _user_progress(user)
     return templates.TemplateResponse(
         request,
         "import_progress_inline.html",
@@ -180,7 +187,7 @@ def list_artists(
                 "current_user": None,
                 "genre_map": {},
                 "total_count": 0,
-                "import_progress": {"running": False, "done": False, "step": "", "current": 0, "total": 0},
+                "import_progress": _EMPTY_PROGRESS,
             },
         )
 

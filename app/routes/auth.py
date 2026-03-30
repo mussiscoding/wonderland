@@ -1,3 +1,5 @@
+import time
+
 import spotipy
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -9,8 +11,9 @@ from app.models import User
 
 router = APIRouter()
 
-# Module-level cache for the OAuth object between /login and /callback
-_pending_oauth = {}
+# OAuth state between /login and /callback. Entries expire after 10 minutes.
+_pending_oauth: dict[str, tuple] = {}
+_OAUTH_TTL = 600  # seconds
 
 
 @router.get("/login")
@@ -18,10 +21,16 @@ def login(request: Request, switch: str = ""):
     show_dialog = bool(switch)
     oauth, cache = get_login_oauth(show_dialog=show_dialog)
 
-    # Store the OAuth/cache in memory keyed by state so callback can retrieve it
     auth_url = oauth.get_authorize_url()
     state = oauth.state
-    _pending_oauth[state] = (oauth, cache)
+
+    # Clean up stale entries before adding new one
+    now = time.monotonic()
+    stale = [k for k, (_, _, t) in _pending_oauth.items() if now - t > _OAUTH_TTL]
+    for k in stale:
+        del _pending_oauth[k]
+
+    _pending_oauth[state] = (oauth, cache, now)
 
     return RedirectResponse(auth_url)
 
@@ -42,7 +51,7 @@ def callback(
         # Fallback: create a fresh OAuth if state was lost
         oauth, cache = get_login_oauth()
     else:
-        oauth, cache = pending
+        oauth, cache, _ = pending
 
     # Exchange code for token
     token_info = oauth.get_access_token(code)
