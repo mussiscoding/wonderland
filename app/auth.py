@@ -36,4 +36,4 @@ def get_spotify_client() -> spotipy.Spotify | None:
     token_info = oauth.get_cached_token()
     if not token_info:
         return None
-    return spotipy.Spotify(auth=token_info["access_token"])
+    return spotipy.Spotify(auth_manager=oauth)

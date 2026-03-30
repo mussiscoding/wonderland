@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import Field, SQLModel, JSON, Column
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Artist(SQLModel, table=True):
@@ -13,8 +17,11 @@ class Artist(SQLModel, table=True):
     manual_score: Optional[float] = Field(default=None)
     excluded: bool = Field(default=False)
     source_signals: dict = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column_kwargs={"onupdate": _utcnow},
+    )
 
     @property
     def effective_score(self) -> float:
@@ -38,8 +45,11 @@ class Event(SQLModel, table=True):
     lineup_raw: Optional[str] = None
     lineup_parsed: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     dedupe_key: str = Field(index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column_kwargs={"onupdate": _utcnow},
+    )
 
 
 class EventSource(SQLModel, table=True):
@@ -50,7 +60,7 @@ class EventSource(SQLModel, table=True):
     source_url: Optional[str] = None
     ticket_url: Optional[str] = None
     price: Optional[str] = None
-    last_fetched: datetime = Field(default_factory=datetime.utcnow)
+    last_fetched: datetime = Field(default_factory=_utcnow)
 
 
 class Match(SQLModel, table=True):

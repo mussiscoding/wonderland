@@ -19,9 +19,7 @@ router = APIRouter()
 
 def _run_fetch_background():
     """Run event fetch + matching in a background thread."""
-    from sqlmodel import Session as SSession
-
-    with SSession(engine) as session:
+    with Session(engine) as session:
         try:
             fetch_all_events(session)
             event_progress.update(running=True, step="Matching artists to events...", current=0, total=0)
@@ -39,6 +37,12 @@ def run_fetch():
 
     threading.Thread(target=_run_fetch_background, daemon=True).start()
     return RedirectResponse("/events/fetch/progress", status_code=303)
+
+
+@router.post("/events/rematch")
+def run_rematch(session: Session = Depends(get_session)):
+    run_matching(session)
+    return RedirectResponse("/events", status_code=303)
 
 
 @router.get("/events/fetch/progress", response_class=HTMLResponse)

@@ -2,13 +2,13 @@ import logging
 import re
 
 from rapidfuzz import fuzz
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 
 from app.models import Artist, Event, Match
 
 logger = logging.getLogger(__name__)
 
-FUZZY_THRESHOLD = 75
+FUZZY_THRESHOLD = 85
 
 # Suffixes to strip when normalising artist names
 STRIP_SUFFIXES = [
@@ -89,17 +89,13 @@ def run_matching(session: Session) -> dict:
     Returns a summary dict.
     """
     # Clear existing matches for a clean re-run
-    existing_matches = session.exec(select(Match)).all()
-    for m in existing_matches:
-        session.delete(m)
+    session.exec(delete(Match))
     session.flush()
 
     # Load all non-excluded artists
-    artists = session.exec(select(Artist)).all()
+    artists = session.exec(select(Artist).where(Artist.excluded == False)).all()
     artist_lookup: dict[str, Artist] = {}  # normalised_name -> Artist
     for a in artists:
-        if a.excluded:
-            continue
         norm = normalise_name(a.name)
         artist_lookup[norm] = a
 
@@ -132,11 +128,17 @@ def run_matching(session: Session) -> dict:
                 event_matched = True
                 continue
 
-            # Fuzzy match
+            # Fuzzy match — skip for very short names (3 chars or fewer)
+            # where fuzzy matching is unreliable (e.g. "MK" matching "R.M.K")
+            if len(norm_lineup) <= 3:
+                continue
+
             best_score = 0
             best_artist = None
             for norm_name, candidate in artist_lookup.items():
-                score = fuzz.token_set_ratio(norm_lineup, norm_name)
+                if len(norm_name) <= 3:
+                    continue
+                score = fuzz.ratio(norm_lineup, norm_name)
                 if score > best_score:
                     best_score = score
                     best_artist = candidate

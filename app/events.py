@@ -5,7 +5,9 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 from app.models import Event, EventSource
-from app.scrapers.ra import fetch_london_events
+from app.scrapers.dice import fetch_london_events as fetch_dice_events
+from app.scrapers.ra import fetch_london_events as fetch_ra_events
+from app.scrapers.skiddle import fetch_london_events as fetch_skiddle_events
 
 logger = logging.getLogger(__name__)
 
@@ -31,58 +33,76 @@ def fetch_all_events(session: Session) -> dict:
 
     Returns a summary dict.
     """
-    event_progress.update(running=True, step="Fetching RA events...", current=0, total=0, done=False)
+    event_progress.update(running=True, step="Fetching events...", current=0, total=0, done=False)
 
     # Load existing events for dedup
     existing_events = {e.dedupe_key: e for e in session.exec(select(Event)).all()}
 
     new_events = 0
     updated_events = 0
+    total_fetched = 0
 
-    # Fetch all London events from RA
-    logger.info("Fetching London events from RA...")
-    raw_events = fetch_london_events(days=60, progress=event_progress)
-    event_progress["total"] = len(raw_events)
-    event_progress["step"] = f"Storing {len(raw_events)} events..."
+    # Fetch from each source
+    sources = [
+        ("RA", fetch_ra_events),
+        ("Skiddle", fetch_skiddle_events),
+        ("Dice", fetch_dice_events),
+    ]
 
-    for i, raw in enumerate(raw_events):
-        event_progress["current"] = i + 1
-        key = _dedupe_key(raw["venue_name"], raw["date"])
+    for source_label, fetch_fn in sources:
+        event_progress["step"] = f"Fetching {source_label} events..."
+        logger.info(f"Fetching London events from {source_label}...")
 
-        if key in existing_events:
-            event = existing_events[key]
-            _ensure_source(session, event, raw)
-            # Merge lineup
-            existing_parsed = set(event.lineup_parsed or [])
-            new_parsed = set(raw.get("lineup_parsed") or [])
-            merged = list(existing_parsed | new_parsed)
-            if len(merged) > len(existing_parsed):
-                event.lineup_parsed = merged
-                event.lineup_raw = ", ".join(merged)
+        raw_events = fetch_fn(days=60, progress=event_progress)
+        total_fetched += len(raw_events)
+
+        event_progress["step"] = f"Storing {len(raw_events)} {source_label} events..."
+        event_progress["total"] = len(raw_events)
+
+        deferred_sources = []
+
+        for i, raw in enumerate(raw_events):
+            event_progress["current"] = i + 1
+            key = _dedupe_key(raw["venue_name"], raw["date"])
+
+            if key in existing_events:
+                event = existing_events[key]
+                # Merge lineup
+                existing_parsed = set(event.lineup_parsed or [])
+                new_parsed = set(raw.get("lineup_parsed") or [])
+                merged = list(existing_parsed | new_parsed)
+                if len(merged) > len(existing_parsed):
+                    event.lineup_parsed = merged
+                    event.lineup_raw = ", ".join(merged)
+                    session.add(event)
+                updated_events += 1
+            else:
+                event = Event(
+                    title=raw["title"],
+                    date=raw["date"],
+                    venue_name=raw["venue_name"],
+                    venue_location=raw.get("venue_location"),
+                    lineup_raw=raw.get("lineup_raw"),
+                    lineup_parsed=raw.get("lineup_parsed", []),
+                    dedupe_key=key,
+                )
                 session.add(event)
-            updated_events += 1
-        else:
-            event = Event(
-                title=raw["title"],
-                date=raw["date"],
-                venue_name=raw["venue_name"],
-                venue_location=raw.get("venue_location"),
-                lineup_raw=raw.get("lineup_raw"),
-                lineup_parsed=raw.get("lineup_parsed", []),
-                dedupe_key=key,
-            )
-            session.add(event)
-            session.flush()
+                existing_events[key] = event
+                new_events += 1
 
-            _add_source(session, event, raw)
-            existing_events[key] = event
-            new_events += 1
+            deferred_sources.append((event, raw))
 
-    session.commit()
+        # Single flush to assign IDs for all new events, then add sources
+        session.flush()
+        for event, raw in deferred_sources:
+            _ensure_source(session, event, raw)
+
+        session.commit()
+
     event_progress.update(running=False, step="Done", done=True)
 
     summary = {
-        "total_fetched": len(raw_events),
+        "total_fetched": total_fetched,
         "new_events": new_events,
         "updated_events": updated_events,
     }

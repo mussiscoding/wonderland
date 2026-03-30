@@ -1,9 +1,9 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app.scrapers.base import RateLimiter
+from app.scrapers.base import RateLimiter, parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -16,24 +16,43 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0)",
 }
 
-QUERY = (
-    "query GET_EVENT_LISTINGS("
-    "$filters: FilterInputDtoInput, "
-    "$filterOptions: FilterOptionsInputDtoInput, "
-    "$page: Int, $pageSize: Int) {"
-    "eventListings(filters: $filters, filterOptions: $filterOptions, "
-    "pageSize: $pageSize, page: $page) {"
-    "data {id listingDate event {"
-    "...eventListingsFields "
-    "artists {id name __typename} __typename} __typename} "
-    "totalResults __typename}}"
-    "fragment eventListingsFields on Event {"
-    "id date startTime endTime title contentUrl "
-    "flyerFront isTicketed attending "
-    "venue {id name contentUrl live __typename} __typename}"
-)
+QUERY = """
+query GET_EVENT_LISTINGS(
+  $filters: FilterInputDtoInput,
+  $filterOptions: FilterOptionsInputDtoInput,
+  $page: Int,
+  $pageSize: Int
+) {
+  eventListings(
+    filters: $filters,
+    filterOptions: $filterOptions,
+    pageSize: $pageSize,
+    page: $page
+  ) {
+    data {
+      id
+      listingDate
+      event {
+        ...eventListingsFields
+        artists { id name __typename }
+        __typename
+      }
+      __typename
+    }
+    totalResults
+    __typename
+  }
+}
 
-PAGE_SIZE = 20
+fragment eventListingsFields on Event {
+  id date startTime endTime title contentUrl
+  flyerFront isTicketed attending
+  venue { id name contentUrl live __typename }
+  __typename
+}
+"""
+
+PAGE_SIZE = 50
 
 rate_limiter = RateLimiter(min_delay=1.5)
 
@@ -43,7 +62,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
 
     Returns a list of normalised event dicts ready for storage.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     start = now.strftime("%Y-%m-%dT00:00:00.000Z")
     end = (now + timedelta(days=days)).strftime("%Y-%m-%dT23:59:59.999Z")
 
@@ -117,16 +136,9 @@ def _normalise_event(event: dict) -> dict | None:
 
     # Parse date
     date_str = event.get("startTime") or event.get("date")
-    if not date_str:
+    dt = parse_iso_datetime(date_str)
+    if not dt:
         return None
-
-    try:
-        dt = datetime.strptime(date_str[:19], "%Y-%m-%dT%H:%M:%S")
-    except ValueError:
-        try:
-            dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
-        except ValueError:
-            return None
 
     title = event.get("title", "")
     venue_name = venue.get("name", "Unknown Venue")

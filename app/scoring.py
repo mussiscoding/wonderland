@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from app.models import GenreClassification
+from app.models import Artist, GenreClassification
 
 # Multipliers per category
 CATEGORY_MULTIPLIERS = {
@@ -42,21 +42,38 @@ def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[
         signal_score += 30
 
     saved_count = source_signals.get("saved_tracks", 0)
-    signal_score += min(saved_count * 5, 25)
+    signal_score += min(saved_count * 7, 35)
 
     intentional_count = source_signals.get("intentional_plays", 0)
-    signal_score += min(intentional_count * 3, 20)
+    signal_score += min(intentional_count * 5, 35)
 
     playlist_count = source_signals.get("playlist_appearances", 0)
-    signal_score += min(playlist_count * 2, 15)
+    signal_score += min(playlist_count * 6, 42)
 
-    if source_signals.get("top_artist"):
+    top_artist_points = {"short_term": 20, "medium_term": 10, "long_term": 5}
+    top_artist_ranges = source_signals.get("top_artist", [])
+    # Support legacy boolean format
+    if top_artist_ranges is True:
         signal_score += 10
+    else:
+        signal_score += min(sum(top_artist_points.get(r, 0) for r in top_artist_ranges), 35)
 
     multiplier = genre_multiplier(genres, genre_map)
     score = multiplier * signal_score
 
     return min(round(score, 1), 100.0)
+
+
+def rescore_all_artists(session: Session) -> None:
+    """Recompute auto_score for every artist using current genre classifications."""
+    genre_map = get_genre_map(session)
+    artists = session.exec(select(Artist)).all()
+    for artist in artists:
+        artist.auto_score = compute_auto_score(
+            artist.source_signals or {}, artist.genres or [], genre_map
+        )
+        session.add(artist)
+    session.commit()
 
 
 def compute_event_score(matched_artists: list[tuple[float, float]]) -> float:
@@ -69,9 +86,5 @@ def compute_event_score(matched_artists: list[tuple[float, float]]) -> float:
 
     # Sum effective scores, weighted by match confidence
     total = sum(score * (conf / 100.0) for score, conf in matched_artists)
-
-    # Bonus for multi-artist lineups: +20 per additional match beyond the first
-    if len(matched_artists) > 1:
-        total += 20 * (len(matched_artists) - 1)
 
     return min(round(total, 1), 100.0)

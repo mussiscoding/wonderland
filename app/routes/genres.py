@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import GenreClassification, Artist
-from app.scoring import get_genre_map, compute_auto_score
+from app.scoring import rescore_all_artists
 from app.templating import templates
 
 router = APIRouter()
@@ -19,8 +19,7 @@ def list_genres(
     session: Session = Depends(get_session),
 ):
     # Auto-populate from existing artists if the table is empty
-    existing_count = len(session.exec(select(GenreClassification)).all())
-    if existing_count == 0:
+    if session.exec(select(GenreClassification).limit(1)).first() is None:
         artists = session.exec(select(Artist)).all()
         seen: set[str] = set()
         for artist in artists:
@@ -83,6 +82,8 @@ def classify_genre(
         session.add(genre)
         session.commit()
 
+        rescore_all_artists(session)
+
     # If HTMX request, return just the updated row
     if request.headers.get("HX-Request"):
         artists = session.exec(select(Artist)).all()
@@ -116,18 +117,14 @@ def bulk_classify(
             genre.category = category
             session.add(genre)
     session.commit()
+
+    rescore_all_artists(session)
+
     return RedirectResponse("/genres", status_code=303)
 
 
 @router.post("/genres/rescore")
 def rescore_artists(session: Session = Depends(get_session)):
     """Recompute all artist auto-scores using current genre classifications."""
-    genre_map = get_genre_map(session)
-    artists = session.exec(select(Artist)).all()
-    for artist in artists:
-        artist.auto_score = compute_auto_score(
-            artist.source_signals or {}, artist.genres or [], genre_map
-        )
-        session.add(artist)
-    session.commit()
+    rescore_all_artists(session)
     return RedirectResponse("/artists", status_code=303)

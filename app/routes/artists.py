@@ -9,7 +9,7 @@ from app.auth import get_spotify_client, is_authenticated
 from app.database import get_session, engine
 from app.models import Artist
 from app.scoring import get_genre_map
-from app.spotify import import_all_artists, import_progress
+from app.spotify import import_all_artists, import_progress, backfill_lastfm
 from app.templating import templates
 
 logger = logging.getLogger(__name__)
@@ -19,9 +19,7 @@ router = APIRouter()
 
 def _run_import_background(sp):
     """Run import in a background thread with its own DB session."""
-    from sqlmodel import Session as SSession
-
-    with SSession(engine) as session:
+    with Session(engine) as session:
         try:
             import_all_artists(sp, session)
         except Exception as e:
@@ -76,6 +74,51 @@ def progress_inline(request: Request):
         request,
         "import_progress_inline.html",
         {"progress": import_progress},
+    )
+
+
+@router.post("/backfill-lastfm")
+def run_lastfm_backfill(request: Request):
+    if not import_progress["running"]:
+        import_progress.update(running=True, step="Starting Last.fm backfill...", current=0, total=0, done=False)
+
+        def _run():
+            with Session(engine) as session:
+                try:
+                    backfill_lastfm(session)
+                except Exception as e:
+                    logger.error(f"Last.fm backfill failed: {e}")
+                    import_progress.update(running=False, step=f"Error: {e}", done=False)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request,
+            "import_progress_inline.html",
+            {"progress": import_progress},
+        )
+
+    return RedirectResponse("/import/progress", status_code=303)
+
+
+@router.get("/artist/{artist_id}", response_class=HTMLResponse)
+def show_artist(
+    request: Request,
+    artist_id: int,
+    session: Session = Depends(get_session),
+):
+    artist = session.get(Artist, artist_id)
+    if not artist:
+        return RedirectResponse("/artists", status_code=303)
+
+    return templates.TemplateResponse(
+        request,
+        "artist_detail.html",
+        {
+            "artist": artist,
+            "genre_map": get_genre_map(session),
+        },
     )
 
 

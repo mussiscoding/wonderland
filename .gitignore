@@ -2,6 +2,7 @@ data/*.db
 .env
 __pycache__/
 *.pyc
+data/.spotify_cache
 .spotipy_cache
 .spotify_cache
 .cache-*

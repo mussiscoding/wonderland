@@ -17,7 +17,10 @@
         {% else %}
         <a href="/events?sort={{ sort }}&q={{ q }}&show_all=1" class="btn btn-outline">Show all</a>
         {% endif %}
-        <form method="post" action="/events/fetch">
+        <form method="post" action="/events/rematch" style="display:inline;">
+            <button class="btn btn-outline" type="submit">Re-match</button>
+        </form>
+        <form method="post" action="/events/fetch" style="display:inline;">
             <button class="btn" type="submit">Fetch Events</button>
         </form>
     </div>
@@ -46,7 +49,7 @@
         <tr>
             <td>
                 {% if score > 0 %}
-                <span class="score {{ 'score-high' if score >= 50 else ('score-med' if score >= 20 else 'score-low') }}">
+                <span class="score {{ 'score-high' if score >= 50 else ('score-med' if score >= 30 else 'score-low') }}">
                     {{ score | int }}
                 </span>
                 {% else %}
