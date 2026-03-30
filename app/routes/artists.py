@@ -66,7 +66,7 @@ def show_progress(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request,
         "import_progress.html",
-        {"progress": progress},
+        {"progress": progress, "current_user": user},
     )
 
 
@@ -77,7 +77,7 @@ def progress_bar(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request,
         "import_progress_bar.html",
-        {"progress": progress},
+        {"progress": progress, "current_user": user},
     )
 
 

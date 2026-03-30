@@ -47,14 +47,15 @@ def run_rematch(session: Session = Depends(get_session)):
 
 
 @router.get("/events/fetch/progress", response_class=HTMLResponse)
-def fetch_progress_page(request: Request):
+def fetch_progress_page(request: Request, session: Session = Depends(get_session)):
     if event_progress["done"] and not event_progress["running"]:
         return RedirectResponse("/events", status_code=303)
 
+    user = get_current_user(request, session)
     return templates.TemplateResponse(
         request,
         "fetch_progress.html",
-        {"progress": event_progress},
+        {"progress": event_progress, "current_user": user},
     )
 
 
