@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
+from app.auth import get_current_user
 from app.database import get_session
 from app.models import GenreClassification, Artist
-from app.scoring import rescore_all_artists
+from app.scoring import rescore_all_users
 from app.templating import templates
 
 router = APIRouter()
@@ -18,6 +19,10 @@ def list_genres(
     sort: str = "",
     session: Session = Depends(get_session),
 ):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
     # Auto-populate from existing artists if the table is empty
     if session.exec(select(GenreClassification).limit(1)).first() is None:
         artists = session.exec(select(Artist)).all()
@@ -65,6 +70,7 @@ def list_genres(
             "category": category,
             "sort": sort,
             "total_count": len(genres),
+            "current_user": user,
         },
     )
 
@@ -82,7 +88,7 @@ def classify_genre(
         session.add(genre)
         session.commit()
 
-        rescore_all_artists(session)
+        rescore_all_users(session)
 
     # If HTMX request, return just the updated row
     if request.headers.get("HX-Request"):
@@ -118,7 +124,7 @@ def bulk_classify(
             session.add(genre)
     session.commit()
 
-    rescore_all_artists(session)
+    rescore_all_users(session)
 
     return RedirectResponse("/genres", status_code=303)
 
@@ -126,5 +132,5 @@ def bulk_classify(
 @router.post("/genres/rescore")
 def rescore_artists(session: Session = Depends(get_session)):
     """Recompute all artist auto-scores using current genre classifications."""
-    rescore_all_artists(session)
+    rescore_all_users(session)
     return RedirectResponse("/artists", status_code=303)

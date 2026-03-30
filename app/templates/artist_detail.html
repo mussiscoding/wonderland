@@ -16,7 +16,7 @@
     <tbody>
         <tr>
             <td>
-                {% set score = artist.effective_score %}
+                {% set score = user_artist.effective_score if user_artist else 0 %}
                 <span class="score {% if score >= 50 %}score-high{% elif score >= 30 %}score-med{% else %}score-low{% endif %}">
                     {{ score | round(0) | int }}
                 </span>
@@ -32,13 +32,14 @@
                 {% endif %}
             </td>
             <td>
+                {% if user_artist %}
                 <div class="signals">
-                    {% if artist.source_signals.get("followed") %}<span>followed (+30)</span>{% endif %}
-                    {% if artist.source_signals.get("saved_tracks") %}<span>{{ artist.source_signals.saved_tracks }} saved (+{{ [artist.source_signals.saved_tracks * 7, 35] | min }})</span>{% endif %}
-                    {% if artist.source_signals.get("intentional_plays") %}<span>{{ artist.source_signals.intentional_plays }} intentional (+{{ [artist.source_signals.intentional_plays * 5, 35] | min }})</span>{% endif %}
-                    {% if artist.source_signals.get("playlist_appearances") %}<span>{{ artist.source_signals.playlist_appearances }} playlists (+{{ [artist.source_signals.playlist_appearances * 6, 42] | min }})</span>{% endif %}
-                    {% if artist.source_signals.get("top_artist") %}
-                    {% set ta = artist.source_signals.top_artist %}
+                    {% if user_artist.source_signals.get("followed") %}<span>followed (+30)</span>{% endif %}
+                    {% if user_artist.source_signals.get("saved_tracks") %}<span>{{ user_artist.source_signals.saved_tracks }} saved (+{{ [user_artist.source_signals.saved_tracks * 7, 35] | min }})</span>{% endif %}
+                    {% if user_artist.source_signals.get("intentional_plays") %}<span>{{ user_artist.source_signals.intentional_plays }} intentional (+{{ [user_artist.source_signals.intentional_plays * 5, 35] | min }})</span>{% endif %}
+                    {% if user_artist.source_signals.get("playlist_appearances") %}<span>{{ user_artist.source_signals.playlist_appearances }} playlists (+{{ [user_artist.source_signals.playlist_appearances * 6, 42] | min }})</span>{% endif %}
+                    {% if user_artist.source_signals.get("top_artist") %}
+                    {% set ta = user_artist.source_signals.top_artist %}
                     {% if ta is sameas true %}<span>top artist (+10)</span>
                     {% else %}
                     {% set pts = namespace(total=0) %}
@@ -62,6 +63,9 @@
                     {% set mult_map = {"dance": "1.0", "adjacent": "0.5", "other": "0.1", "unclassified": "0.3"} %}
                     <span class="genre-mult">&times;{{ mult_map[best_cat.val] }} {{ best_cat.val }}</span>
                 </div>
+                {% else %}
+                <div class="signals"><span style="color: #666;">No scoring data for this artist</span></div>
+                {% endif %}
             </td>
         </tr>
     </tbody>

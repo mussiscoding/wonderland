@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
+from app.auth import get_current_user
 from app.database import get_session, engine
 from app.events import fetch_all_events, event_progress
 from app.matching import run_matching
-from app.models import Artist, Event, EventSource, Match
+from app.models import Artist, Event, EventSource, Match, UserArtist
 from app.scoring import compute_event_score
 from app.templating import templates
 
@@ -46,7 +47,7 @@ def run_rematch(session: Session = Depends(get_session)):
 
 
 @router.get("/events/fetch/progress", response_class=HTMLResponse)
-def fetch_progress(request: Request):
+def fetch_progress_page(request: Request):
     if event_progress["done"] and not event_progress["running"]:
         return RedirectResponse("/events", status_code=303)
 
@@ -74,6 +75,10 @@ def list_events(
     show_all: str = "",
     session: Session = Depends(get_session),
 ):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
     events = session.exec(select(Event)).all()
 
     # Load all matches with artist info
@@ -82,25 +87,40 @@ def list_events(
         a.id: a for a in session.exec(select(Artist)).all()
     }
 
-    # Build match data per event
+    # Load current user's UserArtist data for scoring
+    user_artists = session.exec(
+        select(UserArtist).where(UserArtist.user_id == user.id)
+    ).all()
+    ua_by_artist_id = {ua.artist_id: ua for ua in user_artists}
+
+    # Build match data per event, filtered to user's artists
     matches_by_event: dict[int, list[dict]] = {}
     for m in matches:
         artist = artists_by_id.get(m.artist_id)
         if not artist:
             continue
+        # Only include matches for artists the user has imported
+        ua = ua_by_artist_id.get(m.artist_id)
+        if not ua:
+            continue
+        # Skip excluded artists for this user
+        if ua.excluded:
+            continue
+
         matches_by_event.setdefault(m.event_id, []).append({
             "artist": artist,
+            "effective_score": ua.effective_score,
             "confidence": m.confidence,
             "match_type": m.match_type,
             "matched_name": m.matched_name,
         })
 
-    # Compute event scores
+    # Compute event scores using user-specific scores
     event_scores: dict[int, float] = {}
     for event in events:
         event_matches = matches_by_event.get(event.id, [])
         matched_pairs = [
-            (m["artist"].effective_score, m["confidence"])
+            (m["effective_score"], m["confidence"])
             for m in event_matches
         ]
         event_scores[event.id] = compute_event_score(matched_pairs)
@@ -142,5 +162,6 @@ def list_events(
             "sort": sort,
             "show_all": show_all,
             "total_count": len(events),
+            "current_user": user,
         },
     )

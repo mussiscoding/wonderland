@@ -92,8 +92,8 @@ def run_matching(session: Session) -> dict:
     session.exec(delete(Match))
     session.flush()
 
-    # Load all non-excluded artists
-    artists = session.exec(select(Artist).where(Artist.excluded == False)).all()
+    # Load all artists (exclusion is per-user, applied at display time)
+    artists = session.exec(select(Artist)).all()
     artist_lookup: dict[str, Artist] = {}  # normalised_name -> Artist
     for a in artists:
         norm = normalise_name(a.name)

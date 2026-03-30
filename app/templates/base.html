@@ -18,7 +18,7 @@
         h1 span { color: #1db954; }
         .subtitle { color: #888; margin-bottom: 24px; }
 
-        nav { display: flex; gap: 16px; margin-bottom: 24px; }
+        nav { display: flex; gap: 16px; margin-bottom: 24px; align-items: center; }
         nav a {
             color: #1db954;
             text-decoration: none;
@@ -27,6 +27,9 @@
             transition: background 0.2s;
         }
         nav a:hover { background: #1a1a1a; }
+        .user-area { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 13px; }
+        .user-area .user-name { color: #888; }
+        .user-area a { color: #666; font-size: 12px; padding: 4px 8px; }
 
         .controls {
             display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
@@ -136,6 +139,15 @@
             <a href="/artists">Artists</a>
             <a href="/events">Events</a>
             <a href="/genres">Genres</a>
+            <div class="user-area">
+                {% if current_user %}
+                <span class="user-name">{{ current_user.display_name }}</span>
+                <a href="/login?switch=1">Switch</a>
+                <a href="/logout">Log out</a>
+                {% else %}
+                <a href="/login" class="btn" style="font-size:12px;padding:4px 12px;">Link Spotify</a>
+                {% endif %}
+            </div>
         </nav>
         {% block content %}{% endblock %}
     </div>

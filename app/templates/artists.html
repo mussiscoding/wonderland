@@ -2,7 +2,7 @@
 
 {% block content %}
 
-{% if not authenticated %}
+{% if not current_user %}
 <div class="empty-state">
     <h2>Connect Spotify to get started</h2>
     <p>We'll pull your artists, score them, and help you find gigs.</p>

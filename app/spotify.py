@@ -7,7 +7,7 @@ import httpx
 import spotipy
 from sqlmodel import Session, select
 
-from app.models import Artist, GenreClassification
+from app.models import Artist, GenreClassification, UserArtist
 from app.scoring import compute_auto_score, get_genre_map
 
 logger = logging.getLogger(__name__)
@@ -19,51 +19,58 @@ MB_URL = "https://musicbrainz.org/ws/2/url/"
 LASTFM_API_KEY = os.getenv("LAST_FM_API_KEY")
 LASTFM_API_URL = "https://ws.audioscrobbler.com/2.0/"
 
-# Global import progress tracking
-import_progress = {
-    "running": False,
-    "step": "",
-    "current": 0,
-    "total": 0,
-    "done": False,
-}
+# Per-user import progress tracking: user_id -> progress dict
+import_progress: dict[int, dict] = {}
 
 
-def import_all_artists(sp: spotipy.Spotify, session: Session) -> dict:
+def _get_progress(user_id: int) -> dict:
+    """Get or create progress dict for a user."""
+    if user_id not in import_progress:
+        import_progress[user_id] = {
+            "running": False,
+            "step": "",
+            "current": 0,
+            "total": 0,
+            "done": False,
+        }
+    return import_progress[user_id]
+
+
+def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> dict:
     """Import artists from all Spotify sources and compute auto-scores.
 
+    Writes to the shared Artist catalog and per-user UserArtist records.
     Returns a summary dict with counts.
     """
-    import_progress.update(running=True, step="", current=0, total=0, done=False)
+    progress = _get_progress(user_id)
+    progress.update(running=True, step="", current=0, total=0, done=False)
 
     # Collect signals per artist: spotify_id -> {name, genres, signals}
     artist_data: dict[str, dict] = {}
 
     # Fetch sources that DON'T include genres first
-    import_progress["step"] = "Fetching saved tracks..."
+    progress["step"] = "Fetching saved tracks..."
     logger.info("Fetching saved tracks...")
     _fetch_saved_tracks(sp, artist_data)
 
-    import_progress["step"] = "Fetching playlist artists..."
+    progress["step"] = "Fetching playlist artists..."
     logger.info("Fetching playlist artists...")
     _fetch_playlist_artists(sp, artist_data)
 
-    import_progress["step"] = "Fetching recently played..."
+    progress["step"] = "Fetching recently played..."
     logger.info("Fetching recently played...")
     _fetch_recently_played(sp, artist_data)
 
     # Fetch sources that DO include genres last, so they overwrite empty genres
-    import_progress["step"] = "Fetching top artists..."
+    progress["step"] = "Fetching top artists..."
     logger.info("Fetching top artists...")
     _fetch_top_artists(sp, artist_data)
 
-    import_progress["step"] = "Fetching followed artists..."
+    progress["step"] = "Fetching followed artists..."
     logger.info("Fetching followed artists...")
     _fetch_followed_artists(sp, artist_data)
 
-    # Upsert all artists into DB first (without genres/scores) so that
-    # the MusicBrainz backfill can batch-commit genres incrementally
-    # and progress survives interrupted imports.
+    # Upsert shared Artist catalog (name, spotify_id, genres only)
     existing_by_sid = {
         a.spotify_id: a for a in session.exec(select(Artist)).all()
     }
@@ -75,7 +82,6 @@ def import_all_artists(sp: spotipy.Spotify, session: Session) -> dict:
         existing = existing_by_sid.get(spotify_id)
         if existing:
             existing.name = data["name"]
-            existing.source_signals = data["signals"]
             if data["genres"]:
                 existing.genres = data["genres"]
             session.add(existing)
@@ -85,14 +91,13 @@ def import_all_artists(sp: spotipy.Spotify, session: Session) -> dict:
                 spotify_id=spotify_id,
                 name=data["name"],
                 genres=data["genres"],
-                source_signals=data["signals"],
             )
             session.add(artist)
             new_count += 1
 
     session.commit()
 
-    # Reload so existing_by_sid includes newly inserted artists
+    # Reload to get IDs for newly inserted artists
     existing_by_sid = {
         a.spotify_id: a for a in session.exec(select(Artist)).all()
     }
@@ -106,27 +111,45 @@ def import_all_artists(sp: spotipy.Spotify, session: Session) -> dict:
 
     # Backfill genres from MusicBrainz for artists still missing them
     logger.info("Backfilling missing genres...")
-    _backfill_genres(sp, artist_data, session, existing_by_sid)
+    _backfill_genres(sp, artist_data, session, existing_by_sid, progress)
 
-    import_progress["step"] = "Syncing genres and scoring..."
+    progress["step"] = "Syncing genres and scoring..."
 
     # Ensure all genres exist in the classification table
     _sync_genre_classifications(session, artist_data)
 
-    # Recompute scores now that genres are populated
+    # Create/update UserArtist records with per-user scores
     genre_map = get_genre_map(session)
 
+    # Load existing UserArtist records for this user
+    existing_ua = {
+        ua.artist_id: ua for ua in session.exec(
+            select(UserArtist).where(UserArtist.user_id == user_id)
+        ).all()
+    }
+
     for spotify_id, data in artist_data.items():
-        existing = existing_by_sid[spotify_id]
-        genres = data["genres"] or existing.genres or []
-        existing.auto_score = compute_auto_score(data["signals"], genres, genre_map)
-        if data["genres"]:
-            existing.genres = data["genres"]
-        session.add(existing)
+        artist = existing_by_sid[spotify_id]
+        genres = data["genres"] or artist.genres or []
+        auto_score = compute_auto_score(data["signals"], genres, genre_map)
+
+        ua = existing_ua.get(artist.id)
+        if ua:
+            ua.source_signals = dict(data["signals"])
+            ua.auto_score = auto_score
+            session.add(ua)
+        else:
+            ua = UserArtist(
+                user_id=user_id,
+                artist_id=artist.id,
+                source_signals=dict(data["signals"]),
+                auto_score=auto_score,
+            )
+            session.add(ua)
 
     session.commit()
 
-    import_progress.update(running=False, step="Done", done=True)
+    progress.update(running=False, step="Done", done=True)
 
     summary = {
         "total_artists": len(artist_data),
@@ -169,14 +192,17 @@ def _ensure_artist(artist_data: dict, spotify_id: str, name: str, genres: list[s
         artist_data[spotify_id]["genres"] = genres
 
 
-def _backfill_genres(sp: spotipy.Spotify, artist_data: dict, session: Session, existing_by_sid: dict):
+def _backfill_genres(
+    sp: spotipy.Spotify,
+    artist_data: dict,
+    session: Session,
+    existing_by_sid: dict,
+    progress: dict,
+):
     """Fetch genres from MusicBrainz for artists missing them.
 
-    Spotify dev mode (March 2026+) returns empty genres, so we use
-    MusicBrainz tags instead. Rate limit: 1 request/sec.
-    Genres are committed to the DB incrementally so progress survives restarts.
+    Only backfills artists that don't already have genres in the shared catalog.
     """
-
     missing = [
         (sid, data) for sid, data in artist_data.items() if not data["genres"]
     ]
@@ -188,11 +214,11 @@ def _backfill_genres(sp: spotipy.Spotify, artist_data: dict, session: Session, e
     )
     logger.info(f"  {len(missing)} artists missing genres, fetching from MusicBrainz...")
 
-    import_progress.update(step="Fetching genres from MusicBrainz...", current=0, total=len(missing))
+    progress.update(step="Fetching genres from MusicBrainz...", current=0, total=len(missing))
 
     found = 0
     for i, (sid, data) in enumerate(missing):
-        import_progress["current"] = i + 1
+        progress["current"] = i + 1
         name = data["name"]
         try:
             mbid = None
@@ -245,7 +271,7 @@ def _backfill_genres(sp: spotipy.Spotify, artist_data: dict, session: Session, e
                     data["genres"] = genres
                     found += 1
 
-                    # Stage DB update for batch commit
+                    # Update shared Artist catalog
                     existing = existing_by_sid.get(sid)
                     if existing:
                         existing.genres = genres
@@ -270,35 +296,53 @@ def _backfill_genres(sp: spotipy.Spotify, artist_data: dict, session: Session, e
     if still_missing > 0 and LASTFM_API_KEY:
         _backfill_genres_lastfm(
             [sid for sid, data in missing if not data["genres"]],
-            artist_data, session, existing_by_sid,
+            artist_data, session, existing_by_sid, progress,
         )
 
 
-def backfill_lastfm(session: Session):
+def backfill_lastfm(session: Session, user_id: int):
     """Standalone Last.fm genre backfill for artists with no genres."""
     if not LASTFM_API_KEY:
         logger.warning("LAST_FM_API_KEY not set, skipping Last.fm backfill")
         return
 
-    artists = session.exec(select(Artist)).all()
+    progress = _get_progress(user_id)
+
+    # Find artists that this user has imported but that lack genres
+    user_artists = session.exec(
+        select(UserArtist).where(UserArtist.user_id == user_id)
+    ).all()
+    artist_ids = [ua.artist_id for ua in user_artists]
+    if not artist_ids:
+        progress.update(running=False, step="No artists to backfill", done=True)
+        return
+
+    artists = session.exec(
+        select(Artist).where(Artist.id.in_(artist_ids))
+    ).all()
     missing = [a for a in artists if not a.genres]
 
     if not missing:
         logger.info("No artists missing genres.")
-        import_progress.update(running=False, step="No artists missing genres", done=True)
+        progress.update(running=False, step="No artists missing genres", done=True)
         return
 
     # Build artist_data dict and existing_by_sid for reuse
+    ua_by_artist_id = {ua.artist_id: ua for ua in user_artists}
     artist_data = {
-        a.spotify_id: {"name": a.name, "genres": [], "signals": a.source_signals or {}}
+        a.spotify_id: {
+            "name": a.name,
+            "genres": [],
+            "signals": ua_by_artist_id.get(a.id, UserArtist()).source_signals or {},
+        }
         for a in missing
     }
     existing_by_sid = {a.spotify_id: a for a in missing}
 
-    import_progress.update(running=True, step="", current=0, total=0, done=False)
+    progress.update(running=True, step="", current=0, total=0, done=False)
     _backfill_genres_lastfm(
         [a.spotify_id for a in missing],
-        artist_data, session, existing_by_sid,
+        artist_data, session, existing_by_sid, progress,
     )
 
     # Sync any new genres into classification table and rescore
@@ -309,13 +353,18 @@ def backfill_lastfm(session: Session):
         if data["genres"]:
             artist = existing_by_sid[sid]
             artist.genres = data["genres"]
-            artist.auto_score = compute_auto_score(
-                artist.source_signals or {}, data["genres"], genre_map
-            )
             session.add(artist)
 
+            # Update user's auto_score
+            ua = ua_by_artist_id.get(artist.id)
+            if ua:
+                ua.auto_score = compute_auto_score(
+                    ua.source_signals or {}, data["genres"], genre_map
+                )
+                session.add(ua)
+
     session.commit()
-    import_progress.update(running=False, step="Done", done=True)
+    progress.update(running=False, step="Done", done=True)
 
 
 def _backfill_genres_lastfm(
@@ -323,17 +372,15 @@ def _backfill_genres_lastfm(
     artist_data: dict,
     session: Session,
     existing_by_sid: dict,
+    progress: dict,
 ):
-    """Fetch genres from Last.fm for artists MusicBrainz missed.
-
-    Last.fm rate limit is 5 req/sec; we use a conservative 0.25s delay.
-    """
+    """Fetch genres from Last.fm for artists MusicBrainz missed."""
     logger.info(f"  {len(missing_sids)} artists still missing genres, trying Last.fm...")
-    import_progress.update(step="Fetching genres from Last.fm...", current=0, total=len(missing_sids))
+    progress.update(step="Fetching genres from Last.fm...", current=0, total=len(missing_sids))
 
     found = 0
     for i, sid in enumerate(missing_sids):
-        import_progress["current"] = i + 1
+        progress["current"] = i + 1
         name = artist_data[sid]["name"]
         try:
             resp = httpx.get(
@@ -445,11 +492,7 @@ def _fetch_saved_tracks(sp: spotipy.Spotify, artist_data: dict):
 
 
 def _fetch_playlist_artists(sp: spotipy.Spotify, artist_data: dict):
-    """Fetch artists from user's own playlists and count playlist appearances.
-
-    Spotify dev mode only allows reading tracks from playlists the user owns,
-    so we skip followed/saved playlists from other users.
-    """
+    """Fetch artists from user's own playlists and count playlist appearances."""
     try:
         user_id = sp.current_user()["id"]
         playlists = sp.current_user_playlists(limit=50)

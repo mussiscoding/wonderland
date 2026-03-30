@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from app.models import Artist, GenreClassification
+from app.models import Artist, GenreClassification, User, UserArtist
 
 # Multipliers per category
 CATEGORY_MULTIPLIERS = {
@@ -64,16 +64,41 @@ def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[
     return min(round(score, 1), 100.0)
 
 
-def rescore_all_artists(session: Session) -> None:
-    """Recompute auto_score for every artist using current genre classifications."""
+def rescore_user_artists(session: Session, user_id: int) -> None:
+    """Recompute auto_score for all of a user's artists."""
     genre_map = get_genre_map(session)
-    artists = session.exec(select(Artist)).all()
-    for artist in artists:
-        artist.auto_score = compute_auto_score(
-            artist.source_signals or {}, artist.genres or [], genre_map
+
+    user_artists = session.exec(
+        select(UserArtist).where(UserArtist.user_id == user_id)
+    ).all()
+
+    artist_ids = [ua.artist_id for ua in user_artists]
+    if not artist_ids:
+        return
+
+    artists_by_id = {
+        a.id: a for a in session.exec(
+            select(Artist).where(Artist.id.in_(artist_ids))
+        ).all()
+    }
+
+    for ua in user_artists:
+        artist = artists_by_id.get(ua.artist_id)
+        if not artist:
+            continue
+        ua.auto_score = compute_auto_score(
+            ua.source_signals or {}, artist.genres or [], genre_map
         )
-        session.add(artist)
+        session.add(ua)
+
     session.commit()
+
+
+def rescore_all_users(session: Session) -> None:
+    """Rescore all users' artists. Used when genre classifications change."""
+    users = session.exec(select(User)).all()
+    for user in users:
+        rescore_user_artists(session, user.id)
 
 
 def compute_event_score(matched_artists: list[tuple[float, float]]) -> float:
