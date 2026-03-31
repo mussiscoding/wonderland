@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.auth import get_current_user
 from app.database import get_session
-from app.models import GenreClassification, Artist, UserArtist
+from app.models import ArtistGenre, GenreClassification, Artist, UserArtist
 from app.scoring import rescore_all_users, get_genre_map
 from app.templating import templates
 
@@ -23,17 +24,14 @@ def list_genres(
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    # Auto-populate from existing artists if the table is empty
+    # Auto-populate from existing ArtistGenre if the classification table is empty
     if session.exec(select(GenreClassification).limit(1)).first() is None:
-        artists = session.exec(select(Artist)).all()
-        seen: set[str] = set()
-        for artist in artists:
-            for g in (artist.genres or []):
-                key = g.lower()
-                if key not in seen:
-                    session.add(GenreClassification(name=key))
-                    seen.add(key)
-        if seen:
+        existing_genres = session.exec(
+            select(ArtistGenre.genre_name).distinct()
+        ).all()
+        for genre_name in existing_genres:
+            session.add(GenreClassification(name=genre_name))
+        if existing_genres:
             session.commit()
 
     genres = session.exec(
@@ -47,13 +45,12 @@ def list_genres(
     if category:
         genres = [g for g in genres if g.category == category]
 
-    # Count artists per genre
-    artists = session.exec(select(Artist)).all()
-    genre_counts: dict[str, int] = {}
-    for artist in artists:
-        for g in (artist.genres or []):
-            key = g.lower()
-            genre_counts[key] = genre_counts.get(key, 0) + 1
+    # Count artists per genre via junction table
+    count_results = session.exec(
+        select(ArtistGenre.genre_name, func.count(ArtistGenre.artist_id))
+        .group_by(ArtistGenre.genre_name)
+    ).all()
+    genre_counts = dict(count_results)
 
     if sort == "artists_desc":
         genres.sort(key=lambda g: genre_counts.get(g.name, 0), reverse=True)
@@ -89,23 +86,37 @@ def genre_detail(
         select(GenreClassification).where(GenreClassification.name == genre_name)
     ).first()
 
-    # Find all artists with this genre, joined with UserArtist for scores
-    artists = session.exec(select(Artist)).all()
+    # Single joined query: artists with this genre + their user scores
+    results = session.exec(
+        select(Artist, UserArtist)
+        .join(ArtistGenre, ArtistGenre.artist_id == Artist.id)
+        .outerjoin(
+            UserArtist,
+            (UserArtist.artist_id == Artist.id) & (UserArtist.user_id == user.id),
+        )
+        .where(ArtistGenre.genre_name == genre_name)
+    ).all()
+
+    # Load all genres per matched artist in one query (for genre tags display)
+    artist_ids = [artist.id for artist, _ in results]
+    if artist_ids:
+        genre_rows = session.exec(
+            select(ArtistGenre).where(ArtistGenre.artist_id.in_(artist_ids))
+        ).all()
+    else:
+        genre_rows = []
+    genres_by_artist: dict[int, list[str]] = {}
+    for ag in genre_rows:
+        genres_by_artist.setdefault(ag.artist_id, []).append(ag.genre_name)
+
     matched = []
-    for artist in artists:
-        if any(g.lower() == genre_name for g in (artist.genres or [])):
-            ua = session.exec(
-                select(UserArtist).where(
-                    UserArtist.user_id == user.id,
-                    UserArtist.artist_id == artist.id,
-                )
-            ).first()
-            matched.append({
-                "id": artist.id,
-                "name": artist.name,
-                "genres": artist.genres or [],
-                "effective_score": ua.effective_score if ua else 0,
-            })
+    for artist, ua in results:
+        matched.append({
+            "id": artist.id,
+            "name": artist.name,
+            "genres": genres_by_artist.get(artist.id, []),
+            "effective_score": ua.effective_score if ua else 0,
+        })
 
     matched.sort(key=lambda a: a["effective_score"], reverse=True)
     genre_map = get_genre_map(session)
@@ -140,11 +151,10 @@ def classify_genre(
 
     # If HTMX request, return just the updated row
     if request.headers.get("HX-Request"):
-        artists = session.exec(select(Artist)).all()
-        artist_count = sum(
-            1 for a in artists
-            if any(g.lower() == genre.name for g in (a.genres or []))
-        )
+        artist_count = session.exec(
+            select(func.count(ArtistGenre.id))
+            .where(ArtistGenre.genre_name == genre.name)
+        ).one()
         return templates.TemplateResponse(
             request,
             "genre_row.html",

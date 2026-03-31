@@ -1,9 +1,9 @@
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 
 import httpx
 
+from app.config import settings
 from app.scrapers.base import RateLimiter, parse_iso_datetime
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
 
     Returns a list of normalised event dicts ready for storage.
     """
-    api_key = os.environ.get("DICE_API_KEY")
+    api_key = settings.dice_api_key
     if not api_key:
         logger.warning("  DICE_API_KEY not set, skipping Dice fetch")
         return []

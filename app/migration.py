@@ -7,7 +7,7 @@ import os
 from sqlmodel import Session, SQLModel, select, text
 
 from app.database import engine
-from app.models import User, UserArtist  # noqa: F401 - registers models
+from app.models import User, UserArtist, ArtistGenre  # noqa: F401 - registers models
 import app.models  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -24,10 +24,13 @@ def run_migration():
             result.all()
         except Exception:
             # Column doesn't exist — already migrated or fresh DB
-            return
+            pass
+        else:
+            logger.info("Detected old single-user schema. Running migration...")
+            _migrate_to_multi_user(session)
 
-        logger.info("Detected old single-user schema. Running migration...")
-        _migrate_to_multi_user(session)
+        # Populate ArtistGenre junction table from Artist.genres JSON
+        _migrate_genres_to_junction_table(session)
 
 
 def _migrate_to_multi_user(session: Session):
@@ -109,3 +112,44 @@ def _migrate_to_multi_user(session: Session):
     except Exception as e:
         logger.error(f"Migration failed: {e}. You may need to delete data/wonderland.db and re-import.")
         raise
+
+
+def _migrate_genres_to_junction_table(session: Session):
+    """Populate ArtistGenre from Artist.genres JSON if the table is empty."""
+    # Skip if already populated
+    existing = session.exec(text("SELECT COUNT(*) FROM artistgenre")).one()
+    if existing[0] > 0:
+        return
+
+    # Check if the old genres column still exists
+    try:
+        session.exec(text("SELECT genres FROM artist LIMIT 1")).all()
+    except Exception:
+        # Column already dropped — nothing to migrate
+        return
+
+    rows = session.exec(text("SELECT id, genres FROM artist WHERE genres IS NOT NULL")).all()
+    if not rows:
+        return
+
+    logger.info("Populating ArtistGenre junction table from Artist.genres JSON...")
+    count = 0
+    for artist_id, genres_raw in rows:
+        genres = json.loads(genres_raw) if isinstance(genres_raw, str) else genres_raw
+        if not genres:
+            continue
+        for genre in genres:
+            genre_lower = genre.lower()
+            session.add(ArtistGenre(artist_id=artist_id, genre_name=genre_lower))
+            count += 1
+
+    session.commit()
+    logger.info(f"  Migrated {count} artist-genre associations")
+
+    # Drop the old column now that data is migrated
+    try:
+        session.exec(text("ALTER TABLE artist DROP COLUMN genres"))
+        session.commit()
+        logger.info("  Dropped Artist.genres column")
+    except Exception:
+        pass

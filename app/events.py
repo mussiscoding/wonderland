@@ -11,14 +11,21 @@ from app.scrapers.skiddle import fetch_london_events as fetch_skiddle_events
 
 logger = logging.getLogger(__name__)
 
-# Global progress tracking (same pattern as spotify import)
-event_progress = {
-    "running": False,
-    "step": "",
-    "current": 0,
-    "total": 0,
-    "done": False,
-}
+# Per-user event progress tracking: user_id -> progress dict
+event_progress: dict[int, dict] = {}
+
+
+def _get_event_progress(user_id: int) -> dict:
+    """Get or create event progress dict for a user."""
+    if user_id not in event_progress:
+        event_progress[user_id] = {
+            "running": False,
+            "step": "",
+            "current": 0,
+            "total": 0,
+            "done": False,
+        }
+    return event_progress[user_id]
 
 
 def _dedupe_key(venue_name: str, date: datetime) -> str:
@@ -28,12 +35,13 @@ def _dedupe_key(venue_name: str, date: datetime) -> str:
     return f"{normalised}_{date_str}"
 
 
-def fetch_all_events(session: Session) -> dict:
+def fetch_all_events(session: Session, user_id: int) -> dict:
     """Fetch London events from all sources and store them.
 
     Returns a summary dict.
     """
-    event_progress.update(running=True, step="Fetching events...", current=0, total=0, done=False)
+    progress = _get_event_progress(user_id)
+    progress.update(running=True, step="Fetching events...", current=0, total=0, done=False)
 
     # Load existing events for dedup
     existing_events = {e.dedupe_key: e for e in session.exec(select(Event)).all()}
@@ -50,19 +58,19 @@ def fetch_all_events(session: Session) -> dict:
     ]
 
     for source_label, fetch_fn in sources:
-        event_progress["step"] = f"Fetching {source_label} events..."
+        progress["step"] = f"Fetching {source_label} events..."
         logger.info(f"Fetching London events from {source_label}...")
 
-        raw_events = fetch_fn(days=60, progress=event_progress)
+        raw_events = fetch_fn(days=60, progress=progress)
         total_fetched += len(raw_events)
 
-        event_progress["step"] = f"Storing {len(raw_events)} {source_label} events..."
-        event_progress["total"] = len(raw_events)
+        progress["step"] = f"Storing {len(raw_events)} {source_label} events..."
+        progress["total"] = len(raw_events)
 
         deferred_sources = []
 
         for i, raw in enumerate(raw_events):
-            event_progress["current"] = i + 1
+            progress["current"] = i + 1
             key = _dedupe_key(raw["venue_name"], raw["date"])
 
             if key in existing_events:
@@ -99,7 +107,7 @@ def fetch_all_events(session: Session) -> dict:
 
         session.commit()
 
-    event_progress.update(running=False, step="Done", done=True)
+    progress.update(running=False, step="Done", done=True)
 
     summary = {
         "total_fetched": total_fetched,

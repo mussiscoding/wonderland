@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="controls">
-    <form hx-get="/events" hx-target="#event-results" hx-select="#event-results" hx-swap="outerHTML"
-          hx-trigger="input changed delay:300ms from:find input, input changed delay:300ms from:find select, submit"
+    <form id="events-form" hx-get="/events" hx-target="#event-results" hx-select="#event-results" hx-swap="outerHTML"
+          hx-trigger="input changed delay:300ms from:find input, change from:find input[name='date_from'], change from:find input[name='date_to'], input changed delay:300ms from:find select, submit"
           hx-push-url="true"
-          method="get" action="/events" style="display:flex;gap:12px;align-items:center;">
+          method="get" action="/events" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
+        <input type="date" name="date_from" value="{{ date_from }}" style="width:140px;" title="From date">
+        <span style="color:#666;">–</span>
+        <input type="date" name="date_to" value="{{ date_to }}" style="width:140px;" title="To date">
         <input type="hidden" name="sort" value="{{ sort }}">
         {% if show_all %}
         <input type="hidden" name="show_all" value="1">
@@ -31,6 +34,13 @@
         </form>
     </div>
 </div>
+<div class="controls" style="margin-top:-12px;gap:6px;">
+    <button type="button" class="btn-tiny date-preset" data-preset="tonight" onclick="setDateRange('tonight')">Tonight</button>
+    <button type="button" class="btn-tiny date-preset" data-preset="weekend" onclick="setDateRange('weekend')">This weekend</button>
+    <button type="button" class="btn-tiny date-preset" data-preset="week" onclick="setDateRange('week')">This week</button>
+    <button type="button" class="btn-tiny date-preset" data-preset="month" onclick="setDateRange('month')">This month</button>
+    <button type="button" class="btn-tiny date-preset" data-preset="clear" onclick="setDateRange('clear')">All time</button>
+</div>
 
 <div id="event-results">
 <span class="count">{{ total_count }} event{{ 's' if total_count != 1 }}</span>
@@ -40,12 +50,12 @@
     <thead>
         <tr>
             <th style="width:50px;white-space:nowrap;">
-                <a href="/events?q={{ q }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}" class="sortable">
+                <a href="/events?q={{ q }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Score{% if sort == 'score' %} ▼{% elif sort == 'score_asc' %} ▲{% endif %}
                 </a>
             </th>
             <th style="white-space:nowrap;">
-                <a href="/events?q={{ q }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}" class="sortable">
+                <a href="/events?q={{ q }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Date{% if sort == 'date' %} ▲{% elif sort == 'date_desc' %} ▼{% endif %}
                 </a>
             </th>
@@ -137,4 +147,58 @@
 </div>
 {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('input[type="date"]').forEach(input => {
+    input.addEventListener('change', () => {
+        document.querySelectorAll('.date-preset').forEach(btn => btn.classList.remove('active'));
+    });
+});
+
+function setDateRange(preset) {
+    const form = document.getElementById('events-form');
+    const fromInput = form.querySelector('input[name="date_from"]');
+    const toInput = form.querySelector('input[name="date_to"]');
+    const today = new Date();
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    if (preset === 'clear') {
+        fromInput.value = '';
+        toInput.value = '';
+    } else if (preset === 'tonight') {
+        fromInput.value = fmt(today);
+        toInput.value = fmt(today);
+    } else if (preset === 'weekend') {
+        const day = today.getDay();
+        const fri = new Date(today);
+        fri.setDate(today.getDate() + ((5 - day + 7) % 7 || 7));
+        // If today is Fri, Sat, or Sun, start from today
+        if (day === 5 || day === 6 || day === 0) fri.setTime(today.getTime());
+        const sun = new Date(fri);
+        sun.setDate(fri.getDate() + (7 - fri.getDay()) % 7);
+        fromInput.value = fmt(day >= 5 || day === 0 ? today : fri);
+        toInput.value = fmt(sun);
+    } else if (preset === 'week') {
+        const end = new Date(today);
+        const daysToSun = (7 - today.getDay()) % 7 || 7;
+        end.setDate(today.getDate() + daysToSun);
+        fromInput.value = fmt(today);
+        toInput.value = fmt(end);
+    } else if (preset === 'month') {
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        fromInput.value = fmt(today);
+        toInput.value = fmt(end);
+    }
+
+    // Highlight active button
+    document.querySelectorAll('.date-preset').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === preset);
+    });
+
+    // Submit the form — htmx intercepts this
+    form.requestSubmit();
+}
+</script>
 {% endblock %}

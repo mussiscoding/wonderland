@@ -1,0 +1,42 @@
+{# Signal breakdown partial.
+   Expects:
+     - signals: dict (source_signals for the artist)
+     - artist_genres: list[str] (artist's genre list)
+     - genre_map: dict[str, str] (genre -> category mapping)
+     - weights: dict (SIGNAL_WEIGHTS from scoring.py)
+     - category_multipliers: dict (CATEGORY_MULTIPLIERS from scoring.py)
+#}
+<div class="signals">
+    {% if signals.get("followed") %}<span>followed (+{{ weights.followed.points }})</span>{% endif %}
+    {% if signals.get("saved_tracks") %}<span>{{ signals.saved_tracks }} saved (+{{ [signals.saved_tracks * weights.saved_tracks.per, weights.saved_tracks.cap] | min }})</span>{% endif %}
+    {% if signals.get("intentional_plays") %}<span>{{ signals.intentional_plays }} intentional (+{{ [signals.intentional_plays * weights.intentional_plays.per, weights.intentional_plays.cap] | min }})</span>{% endif %}
+    {% if signals.get("playlist_appearances") %}<span>{{ signals.playlist_appearances }} playlists (+{{ [signals.playlist_appearances * weights.playlist_appearances.per, weights.playlist_appearances.cap] | min }})</span>{% endif %}
+    {% if signals.get("unique_songs") %}<span>{{ signals.unique_songs }} songs (+{{ [signals.unique_songs * weights.unique_songs.per, weights.unique_songs.cap] | min }})</span>{% endif %}
+    {% if signals.get("top_artist") %}
+    {% set ta = signals.top_artist %}
+    {% if ta is sameas true %}<span>top artist (+{{ weights.top_artist.legacy_points }})</span>
+    {% else %}
+    {% set pts = namespace(total=0) %}
+    {% for r in ta %}
+        {% if r == "short_term" %}{% set pts.total = pts.total + weights.top_artist.short_term %}
+        {% elif r == "medium_term" %}{% set pts.total = pts.total + weights.top_artist.medium_term %}
+        {% elif r == "long_term" %}{% set pts.total = pts.total + weights.top_artist.long_term %}
+        {% endif %}
+    {% endfor %}
+    <span>top artist: {{ ta | join(", ") | replace("_term", "") }} (+{{ [pts.total, weights.top_artist.cap] | min }})</span>
+    {% endif %}
+    {% endif %}
+    {% set mult = namespace(total=0.0, count=0) %}
+    {% for g in (artist_genres or []) %}
+        {% set cat = genre_map.get(g.lower(), "unclassified") %}
+        {% if cat != "unclassified" %}
+            {% set mult.total = mult.total + category_multipliers[cat] %}
+            {% set mult.count = mult.count + 1 %}
+        {% endif %}
+    {% endfor %}
+    {% if mult.count > 0 %}
+    <span class="genre-mult">&times;{{ (mult.total / mult.count) | round(2) }} genre match</span>
+    {% else %}
+    <span class="genre-mult">&times;0.3 genre match</span>
+    {% endif %}
+</div>

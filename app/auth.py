@@ -1,5 +1,4 @@
 import json
-import os
 
 import spotipy
 from cryptography.fernet import Fernet
@@ -8,6 +7,7 @@ from spotipy.cache_handler import CacheHandler, MemoryCacheHandler
 from spotipy.oauth2 import SpotifyOAuth
 from sqlmodel import Session
 
+from app.config import settings
 from app.models import User
 
 SCOPES = [
@@ -19,7 +19,7 @@ SCOPES = [
     "playlist-read-collaborative",
 ]
 
-_fernet = Fernet(os.environ["FERNET_KEY"])
+_fernet = Fernet(settings.fernet_key)
 
 
 class DatabaseCacheHandler(CacheHandler):
@@ -55,11 +55,9 @@ def encrypt_token_info(token_info: dict) -> str:
 
 def _build_oauth(cache_handler: CacheHandler, show_dialog: bool = False) -> SpotifyOAuth:
     return SpotifyOAuth(
-        client_id=os.environ["SPOTIFY_CLIENT_ID"],
-        client_secret=os.environ["SPOTIFY_CLIENT_SECRET"],
-        redirect_uri=os.environ.get(
-            "SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/callback"
-        ),
+        client_id=settings.spotify_client_id,
+        client_secret=settings.spotify_client_secret,
+        redirect_uri=settings.spotify_redirect_uri,
         scope=" ".join(SCOPES),
         cache_handler=cache_handler,
         open_browser=False,

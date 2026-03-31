@@ -70,6 +70,8 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ### Controls
 - **Search box**: filters events by title, venue, or artist name. Results update live after 300ms pause in typing. URL updates.
+- **Date range**: two native date inputs (from/to) that filter events by date. Part of the main form — updates live via htmx like search.
+- **Quick date buttons**: "Tonight", "This weekend", "This week", "This month", "All dates" — clicking one sets the date range inputs and triggers the filter. Pure client-side JS, no separate server logic.
 - **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events
 - **Fetch Events button**: triggers background event fetch from all sources (RA, Skiddle, Dice). Redirects to progress page.
 
@@ -115,6 +117,7 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ### Header
 - Genre name with classification badge (coloured tag showing dance/adjacent/other/unclassified)
+- **Classification badge is clickable** — shows a D/A/O popup to reclassify the genre inline. Triggers rescore and page reload on selection.
 - Artist count
 
 ### Table

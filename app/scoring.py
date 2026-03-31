@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from app.models import Artist, GenreClassification, User, UserArtist
+from app.models import Artist, ArtistGenre, GenreClassification, User, UserArtist
 
 # Multipliers per category
 CATEGORY_MULTIPLIERS = {
@@ -8,6 +8,22 @@ CATEGORY_MULTIPLIERS = {
     "adjacent": 0.5,
     "other": 0.1,
     "unclassified": 0.3,
+}
+
+# Signal weights exposed for templates and scoring logic
+SIGNAL_WEIGHTS = {
+    "followed": {"points": 30},
+    "saved_tracks": {"per": 7, "cap": 35},
+    "intentional_plays": {"per": 5, "cap": 35},
+    "playlist_appearances": {"per": 4, "cap": 28},
+    "unique_songs": {"per": 2, "cap": 28},
+    "top_artist": {
+        "short_term": 20,
+        "medium_term": 10,
+        "long_term": 5,
+        "cap": 35,
+        "legacy_points": 10,
+    },
 }
 
 
@@ -21,18 +37,19 @@ def genre_multiplier(genres: list[str], genre_map: dict[str, str]) -> float:
     if not genres:
         return 0.3
 
-    # Pick the best multiplier from classified genres only;
+    # Average the multipliers across all classified genres;
     # fall back to unclassified (0.3) if nothing has been classified yet.
-    best_classified = None
+    classified = []
     for genre in genres:
         category = genre_map.get(genre.lower(), "unclassified")
         if category == "unclassified":
             continue
-        multiplier = CATEGORY_MULTIPLIERS[category]
-        if best_classified is None or multiplier > best_classified:
-            best_classified = multiplier
+        classified.append(CATEGORY_MULTIPLIERS[category])
 
-    return best_classified if best_classified is not None else 0.3
+    if not classified:
+        return 0.3
+
+    return sum(classified) / len(classified)
 
 
 def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[str, str]) -> float:
@@ -79,18 +96,17 @@ def rescore_user_artists(session: Session, user_id: int) -> None:
     if not artist_ids:
         return
 
-    artists_by_id = {
-        a.id: a for a in session.exec(
-            select(Artist).where(Artist.id.in_(artist_ids))
-        ).all()
-    }
+    # Load genres from junction table
+    genre_rows = session.exec(
+        select(ArtistGenre).where(ArtistGenre.artist_id.in_(artist_ids))
+    ).all()
+    genres_by_artist: dict[int, list[str]] = {}
+    for ag in genre_rows:
+        genres_by_artist.setdefault(ag.artist_id, []).append(ag.genre_name)
 
     for ua in user_artists:
-        artist = artists_by_id.get(ua.artist_id)
-        if not artist:
-            continue
         ua.auto_score = compute_auto_score(
-            ua.source_signals or {}, artist.genres or [], genre_map
+            ua.source_signals or {}, genres_by_artist.get(ua.artist_id, []), genre_map
         )
         session.add(ua)
 

@@ -25,7 +25,6 @@ class Artist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     spotify_id: str = Field(unique=True, index=True)
     name: str
-    genres: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(
         default_factory=_utcnow,
@@ -56,6 +55,16 @@ class UserArtist(SQLModel, table=True):
         if self.manual_score is not None:
             return self.manual_score
         return self.auto_score
+
+
+class ArtistGenre(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("artist_id", "genre_name", name="uq_artist_genre"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    artist_id: int = Field(foreign_key="artist.id", index=True)
+    genre_name: str = Field(index=True)
 
 
 class GenreClassification(SQLModel, table=True):

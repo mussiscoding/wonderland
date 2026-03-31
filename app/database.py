@@ -1,8 +1,8 @@
 from sqlmodel import SQLModel, Session, create_engine
 
-DATABASE_URL = "sqlite:///data/wonderland.db"
+from app.config import settings
 
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(settings.database_url, echo=False)
 
 
 def init_db():

@@ -23,42 +23,12 @@
             </td>
             <td>{{ artist.name }}</td>
             <td>
-                {% set artist_genres = artist.genres %}
                 {% include "_genre_tags.html" %}
             </td>
             <td>
                 {% if user_artist %}
-                <div class="signals">
-                    {% if user_artist.source_signals.get("followed") %}<span>followed (+30)</span>{% endif %}
-                    {% if user_artist.source_signals.get("saved_tracks") %}<span>{{ user_artist.source_signals.saved_tracks }} saved (+{{ [user_artist.source_signals.saved_tracks * 7, 35] | min }})</span>{% endif %}
-                    {% if user_artist.source_signals.get("intentional_plays") %}<span>{{ user_artist.source_signals.intentional_plays }} intentional (+{{ [user_artist.source_signals.intentional_plays * 5, 35] | min }})</span>{% endif %}
-                    {% if user_artist.source_signals.get("playlist_appearances") %}<span>{{ user_artist.source_signals.playlist_appearances }} playlists (+{{ [user_artist.source_signals.playlist_appearances * 4, 28] | min }})</span>{% endif %}
-                    {% if user_artist.source_signals.get("unique_songs") %}<span>{{ user_artist.source_signals.unique_songs }} songs (+{{ [user_artist.source_signals.unique_songs * 2, 28] | min }})</span>{% endif %}
-                    {% if user_artist.source_signals.get("top_artist") %}
-                    {% set ta = user_artist.source_signals.top_artist %}
-                    {% if ta is sameas true %}<span>top artist (+10)</span>
-                    {% else %}
-                    {% set pts = namespace(total=0) %}
-                    {% for r in ta %}
-                        {% if r == "short_term" %}{% set pts.total = pts.total + 20 %}
-                        {% elif r == "medium_term" %}{% set pts.total = pts.total + 10 %}
-                        {% elif r == "long_term" %}{% set pts.total = pts.total + 5 %}
-                        {% endif %}
-                    {% endfor %}
-                    <span>top artist: {{ ta | join(", ") | replace("_term", "") }} (+{{ [pts.total, 35] | min }})</span>
-                    {% endif %}
-                    {% endif %}
-                    {% set best_cat = namespace(val="unclassified") %}
-                    {% for g in (artist.genres or []) %}
-                        {% set cat = genre_map.get(g.lower(), "unclassified") %}
-                        {% if cat == "dance" %}{% set best_cat.val = "dance" %}
-                        {% elif cat == "adjacent" and best_cat.val != "dance" %}{% set best_cat.val = "adjacent" %}
-                        {% elif cat == "other" and best_cat.val not in ["dance", "adjacent"] %}{% set best_cat.val = "other" %}
-                        {% endif %}
-                    {% endfor %}
-                    {% set mult_map = {"dance": "1.0", "adjacent": "0.5", "other": "0.1", "unclassified": "0.3"} %}
-                    <span class="genre-mult">&times;{{ mult_map[best_cat.val] }} {{ best_cat.val }}</span>
-                </div>
+                {% set signals = user_artist.source_signals %}
+                {% include "_signal_breakdown.html" %}
                 {% else %}
                 <div class="signals"><span style="color: #666;">No scoring data for this artist</span></div>
                 {% endif %}

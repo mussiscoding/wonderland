@@ -3,7 +3,7 @@ date: 2026-03-30
 idea: Genre multiplier should consider all genres, not just pick the best one — one "adjacent" tag among five "other" tags shouldn't get the full 0.5x
 type: extension
 extends: genre scoring
-status: idea
+status: complete
 ---
 
 # Weighted Genre Multiplier

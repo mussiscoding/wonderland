@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from collections import defaultdict
 
@@ -7,7 +6,8 @@ import httpx
 import spotipy
 from sqlmodel import Session, select
 
-from app.models import Artist, GenreClassification, UserArtist
+from app.config import settings
+from app.models import Artist, ArtistGenre, GenreClassification, UserArtist
 from app.scoring import compute_auto_score, get_genre_map, rescore_user_artists
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ MB_HEADERS = {"User-Agent": "wonderland/0.1 (personal gig finder)"}
 MB_ARTIST = "https://musicbrainz.org/ws/2/artist/"
 MB_URL = "https://musicbrainz.org/ws/2/url/"
 
-LASTFM_API_KEY = os.getenv("LAST_FM_API_KEY")
+LASTFM_API_KEY = settings.last_fm_api_key or None
 LASTFM_API_URL = "https://ws.audioscrobbler.com/2.0/"
 
 # Per-user import progress tracking: user_id -> progress dict
@@ -82,15 +82,12 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
         existing = existing_by_sid.get(spotify_id)
         if existing:
             existing.name = data["name"]
-            if data["genres"]:
-                existing.genres = data["genres"]
             session.add(existing)
             updated_count += 1
         else:
             artist = Artist(
                 spotify_id=spotify_id,
                 name=data["name"],
-                genres=data["genres"],
             )
             session.add(artist)
             new_count += 1
@@ -102,12 +99,23 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
         a.spotify_id: a for a in session.exec(select(Artist)).all()
     }
 
-    # Preserve genres from DB for artists we already have them for
+    # Preserve genres from junction table for artists that already have them
     for spotify_id, data in artist_data.items():
         if not data["genres"]:
             existing = existing_by_sid.get(spotify_id)
-            if existing and existing.genres:
-                data["genres"] = existing.genres
+            if existing:
+                existing_genres = session.exec(
+                    select(ArtistGenre.genre_name).where(ArtistGenre.artist_id == existing.id)
+                ).all()
+                if existing_genres:
+                    data["genres"] = list(existing_genres)
+
+    # Sync genres to junction table
+    for spotify_id, data in artist_data.items():
+        artist = existing_by_sid.get(spotify_id)
+        if artist and data["genres"]:
+            _sync_artist_genres(session, artist.id, data["genres"])
+    session.commit()
 
     # Create/update UserArtist records NOW (before slow genre backfill)
     # so the user can see their artists immediately with initial scores.
@@ -151,11 +159,21 @@ def _upsert_user_artists(
         ).all()
     }
 
+    # Load genres from junction table for all relevant artists
+    all_artist_ids = [a.id for a in existing_by_sid.values()]
+    genres_by_artist: dict[int, list[str]] = {}
+    if all_artist_ids:
+        genre_rows = session.exec(
+            select(ArtistGenre).where(ArtistGenre.artist_id.in_(all_artist_ids))
+        ).all()
+        for ag in genre_rows:
+            genres_by_artist.setdefault(ag.artist_id, []).append(ag.genre_name)
+
     for spotify_id, data in artist_data.items():
         artist = existing_by_sid.get(spotify_id)
         if not artist:
             continue
-        genres = data["genres"] or artist.genres or []
+        genres = data["genres"] or genres_by_artist.get(artist.id, [])
         auto_score = compute_auto_score(data["signals"], genres, genre_map)
 
         ua = existing_ua.get(artist.id)
@@ -192,6 +210,22 @@ def _sync_genre_classifications(session: Session, artist_data: dict):
         for genre_name in new_genres:
             session.add(GenreClassification(name=genre_name))
         session.commit()
+
+
+def _sync_artist_genres(session: Session, artist_id: int, genres: list[str]):
+    """Sync the ArtistGenre junction table for a given artist."""
+    if not genres:
+        return
+    existing = set(
+        row for row in session.exec(
+            select(ArtistGenre.genre_name).where(ArtistGenre.artist_id == artist_id)
+        ).all()
+    )
+    for genre in genres:
+        genre_lower = genre.lower()
+        if genre_lower not in existing:
+            session.add(ArtistGenre(artist_id=artist_id, genre_name=genre_lower))
+            existing.add(genre_lower)
 
 
 def _ensure_artist(artist_data: dict, spotify_id: str, name: str, genres: list[str]):
@@ -286,11 +320,10 @@ def _backfill_genres(
                     data["genres"] = genres
                     found += 1
 
-                    # Update shared Artist catalog
+                    # Update junction table
                     existing = existing_by_sid.get(sid)
                     if existing:
-                        existing.genres = genres
-                        session.add(existing)
+                        _sync_artist_genres(session, existing.id, genres)
 
             # Batch commit every 25 artists
             if (i + 1) % 25 == 0:
@@ -335,7 +368,13 @@ def backfill_lastfm(session: Session, user_id: int):
     artists = session.exec(
         select(Artist).where(Artist.id.in_(artist_ids))
     ).all()
-    missing = [a for a in artists if not a.genres]
+    # Find artists with no genres in the junction table
+    artists_with_genres = set(
+        row for row in session.exec(
+            select(ArtistGenre.artist_id).where(ArtistGenre.artist_id.in_(artist_ids)).distinct()
+        ).all()
+    )
+    missing = [a for a in artists if a.id not in artists_with_genres]
 
     if not missing:
         logger.info("No artists missing genres.")
@@ -367,8 +406,7 @@ def backfill_lastfm(session: Session, user_id: int):
     for sid, data in artist_data.items():
         if data["genres"]:
             artist = existing_by_sid[sid]
-            artist.genres = data["genres"]
-            session.add(artist)
+            _sync_artist_genres(session, artist.id, data["genres"])
 
             # Update user's auto_score
             ua = ua_by_artist_id.get(artist.id)
@@ -424,8 +462,7 @@ def _backfill_genres_lastfm(
 
                 existing = existing_by_sid.get(sid)
                 if existing:
-                    existing.genres = genres
-                    session.add(existing)
+                    _sync_artist_genres(session, existing.id, genres)
 
             if (i + 1) % 25 == 0:
                 session.commit()

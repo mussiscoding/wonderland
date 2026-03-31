@@ -7,8 +7,8 @@ from sqlmodel import Session, select
 
 from app.auth import get_current_user, get_spotify_client
 from app.database import get_session, engine
-from app.models import Artist, UserArtist
-from app.scoring import get_genre_map
+from app.models import Artist, ArtistGenre, UserArtist
+from app.scoring import get_genre_map, SIGNAL_WEIGHTS, CATEGORY_MULTIPLIERS
 from app.spotify import import_all_artists, import_progress, _get_progress, backfill_lastfm
 from app.templating import templates
 
@@ -144,6 +144,11 @@ def show_artist(
     if not artist:
         return RedirectResponse("/artists", status_code=303)
 
+    # Load genres from junction table
+    artist_genres = session.exec(
+        select(ArtistGenre.genre_name).where(ArtistGenre.artist_id == artist_id)
+    ).all()
+
     # Load user-specific scoring data
     user_artist = session.exec(
         select(UserArtist).where(
@@ -157,9 +162,12 @@ def show_artist(
         "artist_detail.html",
         {
             "artist": artist,
+            "artist_genres": artist_genres,
             "user_artist": user_artist,
             "genre_map": get_genre_map(session),
             "current_user": user,
+            "weights": SIGNAL_WEIGHTS,
+            "category_multipliers": CATEGORY_MULTIPLIERS,
         },
     )
 
@@ -188,6 +196,8 @@ def list_artists(
                 "genre_map": {},
                 "total_count": 0,
                 "import_progress": _EMPTY_PROGRESS,
+                "weights": SIGNAL_WEIGHTS,
+                "category_multipliers": CATEGORY_MULTIPLIERS,
             },
         )
 
@@ -205,16 +215,39 @@ def list_artists(
             ).all()
         }
 
+    # If filtering by genre, get the set of matching artist IDs from junction table
+    genre_filter_ids = None
+    if genre:
+        genre_lower = genre.lower()
+        genre_filter_ids = set(
+            row for row in session.exec(
+                select(ArtistGenre.artist_id).where(
+                    ArtistGenre.genre_name.contains(genre_lower)
+                )
+            ).all()
+        )
+
+    # Load genres for all user's artists from junction table
+    genres_by_artist: dict[int, list[str]] = {}
+    if artist_ids:
+        genre_rows = session.exec(
+            select(ArtistGenre).where(ArtistGenre.artist_id.in_(artist_ids))
+        ).all()
+        for ag in genre_rows:
+            genres_by_artist.setdefault(ag.artist_id, []).append(ag.genre_name)
+
     # Build merged artist+score objects for the template
     merged = []
     for ua in user_artists:
         artist = artists_by_id.get(ua.artist_id)
         if not artist:
             continue
+        if genre_filter_ids is not None and ua.artist_id not in genre_filter_ids:
+            continue
         merged.append({
             "id": artist.id,
             "name": artist.name,
-            "genres": artist.genres or [],
+            "genres": genres_by_artist.get(artist.id, []),
             "effective_score": ua.effective_score,
             "auto_score": ua.auto_score,
             "manual_score": ua.manual_score,
@@ -226,13 +259,6 @@ def list_artists(
     if q:
         q_lower = q.lower()
         merged = [a for a in merged if q_lower in a["name"].lower()]
-
-    if genre:
-        genre_lower = genre.lower()
-        merged = [
-            a for a in merged
-            if any(genre_lower in g.lower() for g in a["genres"])
-        ]
 
     if sort == "score":
         merged.sort(key=lambda a: a["effective_score"], reverse=True)
@@ -257,5 +283,7 @@ def list_artists(
             "genre_map": get_genre_map(session),
             "total_count": len(merged),
             "import_progress": progress,
+            "weights": SIGNAL_WEIGHTS,
+            "category_multipliers": CATEGORY_MULTIPLIERS,
         },
     )

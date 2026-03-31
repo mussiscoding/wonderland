@@ -1,5 +1,6 @@
 import logging
 import threading
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -7,7 +8,7 @@ from sqlmodel import Session, select
 
 from app.auth import get_current_user
 from app.database import get_session, engine
-from app.events import fetch_all_events, event_progress
+from app.events import fetch_all_events, _get_event_progress
 from app.matching import run_matching
 from app.models import Artist, Event, EventSource, Match, UserArtist
 from app.scoring import compute_event_score
@@ -18,48 +19,66 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _run_fetch_background():
+_EMPTY_EVENT_PROGRESS = {"running": False, "done": False, "step": "", "current": 0, "total": 0}
+
+
+def _user_event_progress(user) -> dict:
+    """Get event progress dict for user, or empty default if no user."""
+    return _get_event_progress(user.id) if user else _EMPTY_EVENT_PROGRESS
+
+
+def _run_fetch_background(user_id: int):
     """Run event fetch + matching in a background thread."""
+    progress = _get_event_progress(user_id)
     with Session(engine) as session:
         try:
-            fetch_all_events(session)
-            event_progress.update(running=True, step="Matching artists to events...", current=0, total=0)
+            fetch_all_events(session, user_id)
+            progress.update(running=True, step="Matching artists to events...", current=0, total=0)
             run_matching(session)
-            event_progress.update(running=False, step="Done", done=True)
+            progress.update(running=False, step="Done", done=True)
         except Exception as e:
             logger.error(f"Background event fetch failed: {e}")
-            event_progress.update(running=False, step=f"Error: {e}", done=False)
+            progress.update(running=False, step=f"Error: {e}", done=False)
 
 
 @router.post("/events/fetch")
-def run_fetch():
-    if event_progress["running"]:
+def run_fetch(request: Request, session: Session = Depends(get_session)):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    progress = _get_event_progress(user.id)
+    if progress["running"]:
         return RedirectResponse("/events/fetch/progress", status_code=303)
 
-    threading.Thread(target=_run_fetch_background, daemon=True).start()
+    threading.Thread(target=_run_fetch_background, args=(user.id,), daemon=True).start()
     return RedirectResponse("/events/fetch/progress", status_code=303)
 
 
 
 @router.get("/events/fetch/progress", response_class=HTMLResponse)
 def fetch_progress_page(request: Request, session: Session = Depends(get_session)):
-    if event_progress["done"] and not event_progress["running"]:
+    user = get_current_user(request, session)
+    progress = _user_event_progress(user)
+
+    if progress["done"] and not progress["running"]:
         return RedirectResponse("/events", status_code=303)
 
-    user = get_current_user(request, session)
     return templates.TemplateResponse(
         request,
         "fetch_progress.html",
-        {"progress": event_progress, "current_user": user},
+        {"progress": progress, "current_user": user},
     )
 
 
 @router.get("/events/fetch/progress-bar", response_class=HTMLResponse)
-def fetch_progress_bar(request: Request):
+def fetch_progress_bar(request: Request, session: Session = Depends(get_session)):
+    user = get_current_user(request, session)
+    progress = _user_event_progress(user)
     return templates.TemplateResponse(
         request,
         "fetch_progress_bar.html",
-        {"progress": event_progress},
+        {"progress": progress},
     )
 
 
@@ -69,6 +88,8 @@ def list_events(
     q: str = "",
     sort: str = "score",
     show_all: str = "",
+    date_from: str = "",
+    date_to: str = "",
     session: Session = Depends(get_session),
 ):
     user = get_current_user(request, session)
@@ -130,6 +151,20 @@ def list_events(
     if not show_all:
         events = [e for e in events if event_scores.get(e.id, 0) > 0]
 
+    # Date filter
+    if date_from:
+        try:
+            df = date.fromisoformat(date_from)
+            events = [e for e in events if e.date.date() >= df]
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt = date.fromisoformat(date_to)
+            events = [e for e in events if e.date.date() <= dt]
+        except ValueError:
+            pass
+
     # Search filter
     if q:
         q_lower = q.lower()
@@ -162,6 +197,8 @@ def list_events(
             "sort": sort,
             "show_all": show_all,
             "total_count": len(events),
+            "date_from": date_from,
+            "date_to": date_to,
             "current_user": user,
         },
     )

@@ -1,19 +1,12 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-load_dotenv()
-
-# Validate required secrets
-for key in ("SESSION_SECRET", "FERNET_KEY"):
-    if not os.environ.get(key):
-        raise RuntimeError(f"{key} must be set in .env")
+from app.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
@@ -33,7 +26,7 @@ app = FastAPI(title="wonderland", lifespan=lifespan)
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ["SESSION_SECRET"],
+    secret_key=settings.session_secret,
     max_age=14 * 24 * 60 * 60,  # 14 days
 )
 
