@@ -8,6 +8,7 @@ from app.models import Event, EventSource
 from app.scrapers.dice import fetch_london_events as fetch_dice_events
 from app.scrapers.ra import fetch_london_events as fetch_ra_events
 from app.scrapers.skiddle import fetch_london_events as fetch_skiddle_events
+from app.scrapers.ticketmaster import fetch_london_events as fetch_ticketmaster_events
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +56,14 @@ def fetch_all_events(session: Session, user_id: int) -> dict:
         ("RA", fetch_ra_events),
         ("Skiddle", fetch_skiddle_events),
         ("Dice", fetch_dice_events),
+        ("Ticketmaster", fetch_ticketmaster_events),
     ]
 
     for source_label, fetch_fn in sources:
         progress["step"] = f"Fetching {source_label} events..."
         logger.info(f"Fetching London events from {source_label}...")
 
-        raw_events = fetch_fn(days=60, progress=progress)
+        raw_events = fetch_fn(days=270, progress=progress)
         total_fetched += len(raw_events)
 
         progress["step"] = f"Storing {len(raw_events)} {source_label} events..."

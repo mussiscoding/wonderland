@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Optional API keys for scrapers / enrichment
     dice_api_key: str = ""
     skiddle_api_key: str = ""
+    ticketmaster_api_key: str = ""
     last_fm_api_key: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}

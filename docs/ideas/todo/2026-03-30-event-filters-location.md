@@ -17,8 +17,8 @@ Right now events are just a flat list filtered by text search. You should be abl
 - **Distance sorting**: order events by distance from user's location
 - **Distance filter**: "within X miles" radius filter
 - **Multi-city**: scrapers would need to support location params rather than hardcoded London area codes
-- **Date quick filters**: "Tonight", "This weekend", "This week", "This month", "This year" as one-click buttons
-- **Date range picker**: calendar-based custom date range selection alongside the quick filters
+- ~~**Date quick filters**: "Tonight", "This weekend", "This week", "This month", "All time" as one-click buttons~~ ✅ done
+- ~~**Date range picker**: calendar-based custom date range selection alongside the quick filters~~ ✅ done
 
 ## Open questions
 - Where does venue capacity data come from? Scrapers don't currently provide it. Manual enrichment? Third-party API?
