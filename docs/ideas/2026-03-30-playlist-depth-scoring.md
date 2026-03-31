@@ -3,7 +3,7 @@ date: 2026-03-30
 idea: Weight playlist scoring by unique songs, not just playlist count — one song in 5 playlists shouldn't score as high as 5 different songs
 type: extension
 extends: artist auto-scoring
-status: idea
+status: complete
 ---
 
 # Playlist Depth Scoring
