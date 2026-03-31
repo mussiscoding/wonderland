@@ -32,6 +32,7 @@ def _get_event_progress(user_id: int) -> dict:
 def _dedupe_key(venue_name: str, date: datetime) -> str:
     """Normalise venue + date into a deduplication key."""
     normalised = re.sub(r"[^a-z0-9]", "", venue_name.lower())
+    normalised = re.sub(r"^the", "", normalised)
     date_str = date.strftime("%Y-%m-%d")
     return f"{normalised}_{date_str}"
 
