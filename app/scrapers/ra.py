@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -45,7 +46,7 @@ query GET_EVENT_LISTINGS(
 }
 
 fragment eventListingsFields on Event {
-  id date startTime endTime title contentUrl
+  id date startTime endTime title contentUrl cost
   flyerFront isTicketed attending
   venue { id name contentUrl live __typename }
   __typename
@@ -145,6 +146,8 @@ def _normalise_event(event: dict) -> dict | None:
     content_url = event.get("contentUrl", "")
     source_url = f"https://ra.co{content_url}" if content_url else None
 
+    price = _parse_cost(event.get("cost"))
+
     return {
         "title": title,
         "date": dt,
@@ -156,5 +159,29 @@ def _normalise_event(event: dict) -> dict | None:
         "source_id": str(event.get("id", "")),
         "source_url": source_url,
         "ticket_url": source_url,  # RA event page has ticket links
+        "price": price,
         "attending": event.get("attending", 0),
     }
+
+
+def _parse_cost(cost: str | None) -> str | None:
+    """Parse RA's freeform cost string into a normalised price.
+
+    Handles formats like '£8 - £30', '5', '£20 ', '0', empty string.
+    Returns the lowest price as '£X' or '£X.YY', or None if free/empty.
+    """
+    if not cost or not cost.strip():
+        return None
+
+    # Find all numeric values (with optional decimals)
+    numbers = re.findall(r"(\d+(?:\.\d+)?)", cost)
+    if not numbers:
+        return None
+
+    min_price = min(float(n) for n in numbers)
+    if min_price <= 0:
+        return None
+
+    if min_price == int(min_price):
+        return f"£{min_price:.0f}"
+    return f"£{min_price:.2f}"
