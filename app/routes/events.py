@@ -40,11 +40,6 @@ def run_fetch():
     return RedirectResponse("/events/fetch/progress", status_code=303)
 
 
-@router.post("/events/rematch")
-def run_rematch(session: Session = Depends(get_session)):
-    run_matching(session)
-    return RedirectResponse("/events", status_code=303)
-
 
 @router.get("/events/fetch/progress", response_class=HTMLResponse)
 def fetch_progress_page(request: Request, session: Session = Depends(get_session)):
@@ -148,8 +143,12 @@ def list_events(
     # Sort
     if sort == "score":
         events.sort(key=lambda e: event_scores.get(e.id, 0), reverse=True)
+    elif sort == "score_asc":
+        events.sort(key=lambda e: event_scores.get(e.id, 0))
     elif sort == "date":
         events.sort(key=lambda e: e.date)
+    elif sort == "date_desc":
+        events.sort(key=lambda e: e.date, reverse=True)
 
     return templates.TemplateResponse(
         request,

@@ -4,8 +4,8 @@ from sqlmodel import Session, select
 
 from app.auth import get_current_user
 from app.database import get_session
-from app.models import GenreClassification, Artist
-from app.scoring import rescore_all_users
+from app.models import GenreClassification, Artist, UserArtist
+from app.scoring import rescore_all_users, get_genre_map
 from app.templating import templates
 
 router = APIRouter()
@@ -75,6 +75,54 @@ def list_genres(
     )
 
 
+@router.get("/genre/{genre_name:path}", response_class=HTMLResponse)
+def genre_detail(
+    request: Request,
+    genre_name: str,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    genre = session.exec(
+        select(GenreClassification).where(GenreClassification.name == genre_name)
+    ).first()
+
+    # Find all artists with this genre, joined with UserArtist for scores
+    artists = session.exec(select(Artist)).all()
+    matched = []
+    for artist in artists:
+        if any(g.lower() == genre_name for g in (artist.genres or [])):
+            ua = session.exec(
+                select(UserArtist).where(
+                    UserArtist.user_id == user.id,
+                    UserArtist.artist_id == artist.id,
+                )
+            ).first()
+            matched.append({
+                "id": artist.id,
+                "name": artist.name,
+                "genres": artist.genres or [],
+                "effective_score": ua.effective_score if ua else 0,
+            })
+
+    matched.sort(key=lambda a: a["effective_score"], reverse=True)
+    genre_map = get_genre_map(session)
+
+    return templates.TemplateResponse(
+        request,
+        "genre_detail.html",
+        {
+            "genre_name": genre_name,
+            "genre": genre,
+            "artists": matched,
+            "genre_map": genre_map,
+            "current_user": user,
+        },
+    )
+
+
 @router.post("/genres/{genre_id}/classify")
 def classify_genre(
     request: Request,
@@ -127,10 +175,3 @@ def bulk_classify(
     rescore_all_users(session)
 
     return RedirectResponse("/genres", status_code=303)
-
-
-@router.post("/genres/rescore")
-def rescore_artists(session: Session = Depends(get_session)):
-    """Recompute all artist auto-scores using current genre classifications."""
-    rescore_all_users(session)
-    return RedirectResponse("/artists", status_code=303)

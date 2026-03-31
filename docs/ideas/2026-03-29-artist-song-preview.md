@@ -3,7 +3,7 @@ date: 2026-03-29
 idea: Show a top song preview clip for each artist to aid recognition
 type: extension
 extends: artist scoring
-status: idea
+status: complete
 ---
 
 # Artist Song Preview for Recognition

@@ -48,7 +48,10 @@ def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[
     signal_score += min(intentional_count * 5, 35)
 
     playlist_count = source_signals.get("playlist_appearances", 0)
-    signal_score += min(playlist_count * 6, 42)
+    signal_score += min(playlist_count * 4, 28)
+
+    unique_songs = source_signals.get("unique_songs", 0)
+    signal_score += min(unique_songs * 2, 28)
 
     top_artist_points = {"short_term": 20, "medium_term": 10, "long_term": 5}
     top_artist_ranges = source_signals.get("top_artist", [])

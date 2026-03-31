@@ -1,0 +1,6 @@
+<div class="genre-tags-wrap">
+{% for g in (artist_genres or []) %}
+{% set cat = genre_map.get(g.lower(), "unclassified") %}
+<a href="/genre/{{ g | lower | urlencode }}" class="genre-tag {% if cat == 'dance' %}dance{% elif cat == 'adjacent' %}adjacent{% endif %}">{{ g }}</a>
+{% endfor %}
+</div>

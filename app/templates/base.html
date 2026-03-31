@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>wonderland</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪩</text></svg>">
     <script src="/static/htmx.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,7 +47,7 @@
             padding: 8px 12px; border-radius: 4px; font-size: 14px;
         }
         .btn {
-            background: #1db954; color: #000; border: none; padding: 8px 16px;
+            background: #1db954; color: #000; border: 1px solid #1db954; padding: 8px 16px;
             border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;
             text-decoration: none; display: inline-block;
         }
@@ -86,11 +87,15 @@
         .score-med { color: #f0b429; }
         .score-low { color: #666; }
 
+        .genre-tags-wrap {
+            display: flex; flex-wrap: wrap; overflow: hidden;
+        }
         .genre-tag {
             display: inline-block; background: #1a1a1a; border: 1px solid #333;
-            padding: 2px 8px; border-radius: 12px; font-size: 11px; margin: 1px 2px;
+            padding: 2px 8px; border-radius: 12px; font-size: 11px; margin: 2px 2px;
             color: #aaa;
         }
+        a.genre-tag { text-decoration: none; }
         .genre-tag.dance { border-color: #1db954; color: #1db954; }
         .genre-tag.adjacent { border-color: #f0b429; color: #f0b429; }
 
@@ -151,5 +156,19 @@
         </nav>
         {% block content %}{% endblock %}
     </div>
+<script>
+function clampGenreTags() {
+    document.querySelectorAll('.genre-tags-wrap').forEach(wrap => {
+        wrap.style.maxHeight = '';
+        const first = wrap.querySelector('.genre-tag');
+        if (first) {
+            const rowH = first.offsetHeight + 4; // 4px = vertical margins
+            wrap.style.maxHeight = (rowH * 2) + 'px';
+        }
+    });
+}
+clampGenreTags();
+document.body.addEventListener('htmx:afterSwap', clampGenreTags);
+</script>
 </body>
 </html>

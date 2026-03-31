@@ -8,7 +8,7 @@ import spotipy
 from sqlmodel import Session, select
 
 from app.models import Artist, GenreClassification, UserArtist
-from app.scoring import compute_auto_score, get_genre_map
+from app.scoring import compute_auto_score, get_genre_map, rescore_user_artists
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +122,9 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
     # Ensure all genres exist in the classification table
     _sync_genre_classifications(session, artist_data)
 
-    # Rescore with updated genres
+    # Final rescore using DB genres + existing classifications
     progress["step"] = "Rescoring with genres..."
-    _upsert_user_artists(session, user_id, artist_data, existing_by_sid)
+    rescore_user_artists(session, user_id)
 
     progress.update(running=False, step="Done", done=True)
 
@@ -524,9 +524,15 @@ def _fetch_playlist_artists(sp: spotipy.Spotify, artist_data: dict):
     except Exception as e:
         logger.warning(f"Failed to fetch playlists: {e}")
 
+    # Convert collected track ID sets into unique_songs counts
+    for data in artist_data.values():
+        track_ids = data.pop("_playlist_track_ids", None)
+        if track_ids:
+            data["signals"]["unique_songs"] = len(track_ids)
+
 
 def _process_playlist(sp: spotipy.Spotify, playlist_id: str, artist_data: dict):
-    """Process a single playlist, extracting unique artists."""
+    """Process a single playlist, extracting unique artists and track IDs."""
     seen_in_playlist: set[str] = set()
     try:
         results = sp.playlist_tracks(playlist_id, limit=100)
@@ -537,6 +543,7 @@ def _process_playlist(sp: spotipy.Spotify, playlist_id: str, artist_data: dict):
                 if not track:
                     continue
                 track_count += 1
+                track_id = track.get("id")
                 for artist in track.get("artists", []):
                     artist_id = artist["id"]
                     if artist_id is None:
@@ -546,6 +553,11 @@ def _process_playlist(sp: spotipy.Spotify, playlist_id: str, artist_data: dict):
                     if artist_id not in seen_in_playlist:
                         artist_data[artist_id]["signals"]["playlist_appearances"] += 1
                         seen_in_playlist.add(artist_id)
+                    # Track unique songs per artist
+                    if track_id:
+                        if "_playlist_track_ids" not in artist_data[artist_id]:
+                            artist_data[artist_id]["_playlist_track_ids"] = set()
+                        artist_data[artist_id]["_playlist_track_ids"].add(track_id)
 
             if results.get("next"):
                 results = sp.next(results)

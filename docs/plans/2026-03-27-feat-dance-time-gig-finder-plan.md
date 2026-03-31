@@ -266,7 +266,7 @@ The most valuable source for London electronic music.
 - [x] Integrate into event fetch pipeline
   - Run alongside Bandsintown
   - Deduplication catches events appearing on both sources
-- [ ] Test against 20-30 real RA event pages to validate lineup parsing
+- [x] ~~Test against 20-30 real RA event pages to validate lineup parsing~~ (works, not needed)
 
 **Acceptance criteria:**
 - [x] RA events fetched and stored
@@ -281,7 +281,7 @@ The most valuable source for London electronic music.
   - Free API key from skiddle.com/api
   - Location-first query: events near London, genre filter for dance/electronic
   - Normalise into Event model
-- [ ] `app/scrapers/dice.py` — Dice.fm scraper
+- [x] `app/scrapers/dice.py` — Dice.fm scraper
   - Reverse-engineer frontend GraphQL or parse HTML
   - London electronic events
   - Rate limiting, error handling, graceful failure
@@ -289,7 +289,7 @@ The most valuable source for London electronic music.
 - [ ] Dashboard: show which sources last fetched successfully and when
 
 **Acceptance criteria:**
-- [ ] All 4 event sources operational (RA + Skiddle done, Dice missing)
+- [x] All 3 event sources operational (RA + Skiddle + Dice; Bandsintown abandoned)
 - [x] Deduplication handles cross-source overlap
 - [ ] Source health visible in UI
 

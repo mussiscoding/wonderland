@@ -1,5 +1,5 @@
 <tr id="genre-{{ genre.id }}">
-    <td>{{ genre.name }}</td>
+    <td><a href="/genre/{{ genre.name | urlencode }}">{{ genre.name }}</a></td>
     <td>{{ artist_count }}</td>
     <td>
         {% if genre.category == "dance" %}

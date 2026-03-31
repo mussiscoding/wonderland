@@ -1,39 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="controls">
-    <form method="get" action="/events" style="display:flex;gap:12px;align-items:center;">
+    <form hx-get="/events" hx-target="#event-results" hx-select="#event-results" hx-swap="outerHTML"
+          hx-trigger="input changed delay:300ms from:find input, input changed delay:300ms from:find select, submit"
+          hx-push-url="true"
+          method="get" action="/events" style="display:flex;gap:12px;align-items:center;">
         <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
-        <select name="sort" onchange="this.form.submit()">
-            <option value="score" {{ 'selected' if sort == 'score' }}>Sort by score</option>
-            <option value="date" {{ 'selected' if sort == 'date' }}>Sort by date</option>
-        </select>
+        <input type="hidden" name="sort" value="{{ sort }}">
         {% if show_all %}
         <input type="hidden" name="show_all" value="1">
         {% endif %}
     </form>
     <div style="margin-left:auto;display:flex;gap:8px;">
         {% if show_all %}
-        <a href="/events?sort={{ sort }}&q={{ q }}" class="btn btn-outline">Matched only</a>
-        {% else %}
-        <a href="/events?sort={{ sort }}&q={{ q }}&show_all=1" class="btn btn-outline">Show all</a>
-        {% endif %}
-        <form method="post" action="/events/rematch" style="display:inline;">
-            <button class="btn btn-outline" type="submit">Re-match</button>
+        <form method="get" action="/events" style="display:inline;">
+            <input type="hidden" name="sort" value="{{ sort }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <button class="btn btn-outline" type="submit">Matched only</button>
         </form>
+        {% else %}
+        <form method="get" action="/events" style="display:inline;">
+            <input type="hidden" name="sort" value="{{ sort }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="show_all" value="1">
+            <button class="btn btn-outline" type="submit">Show all</button>
+        </form>
+        {% endif %}
         <form method="post" action="/events/fetch" style="display:inline;">
             <button class="btn" type="submit">Fetch Events</button>
         </form>
     </div>
 </div>
 
+<div id="event-results">
 <span class="count">{{ total_count }} event{{ 's' if total_count != 1 }}</span>
 
 {% if events %}
 <table>
     <thead>
         <tr>
-            <th style="width:50px;">Score</th>
-            <th>Date</th>
+            <th style="width:50px;white-space:nowrap;">
+                <a href="/events?q={{ q }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}" class="sortable">
+                    Score{% if sort == 'score' %} ▼{% elif sort == 'score_asc' %} ▲{% endif %}
+                </a>
+            </th>
+            <th style="white-space:nowrap;">
+                <a href="/events?q={{ q }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}" class="sortable">
+                    Date{% if sort == 'date' %} ▲{% elif sort == 'date_desc' %} ▼{% endif %}
+                </a>
+            </th>
             <th>Event</th>
             <th>Venue</th>
             <th>Matched Artists</th>
@@ -121,4 +136,5 @@
     {% endif %}
 </div>
 {% endif %}
+</div>
 {% endblock %}

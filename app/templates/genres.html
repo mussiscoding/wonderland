@@ -3,24 +3,26 @@
 {% block content %}
 
 <div class="controls">
-    <form action="/genres" method="get" style="display: flex; gap: 12px; align-items: center;">
+    <form id="genre-filter-form" hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
+          hx-push-url="true"
+          action="/genres" method="get" style="display: flex; gap: 12px; align-items: center;">
         <input type="hidden" name="sort" value="{{ sort }}">
-        <input type="text" name="q" value="{{ q }}" placeholder="Search genres...">
-        <select name="category">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search genres..."
+               hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
+               hx-trigger="input changed delay:300ms" hx-push-url="true" hx-include="#genre-filter-form">
+        <select name="category"
+                hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
+                hx-trigger="change" hx-push-url="true" hx-include="#genre-filter-form">
             <option value="" {% if not category %}selected{% endif %}>All categories</option>
             <option value="unclassified" {% if category == "unclassified" %}selected{% endif %}>Unclassified</option>
             <option value="dance" {% if category == "dance" %}selected{% endif %}>Dance</option>
             <option value="adjacent" {% if category == "adjacent" %}selected{% endif %}>Adjacent</option>
             <option value="other" {% if category == "other" %}selected{% endif %}>Other</option>
         </select>
-        <button type="submit" class="btn btn-outline">Filter</button>
-    </form>
-
-    <form action="/genres/rescore" method="post" style="margin-left: auto;">
-        <button type="submit" class="btn">Rescore Artists</button>
     </form>
 </div>
 
+<div id="genre-results">
 <p class="count">{{ total_count }} genres</p>
 
 <table>
@@ -51,5 +53,6 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% endblock %}

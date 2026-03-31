@@ -236,8 +236,12 @@ def list_artists(
 
     if sort == "score":
         merged.sort(key=lambda a: a["effective_score"], reverse=True)
+    elif sort == "score_asc":
+        merged.sort(key=lambda a: a["effective_score"])
     elif sort == "name":
         merged.sort(key=lambda a: a["name"].lower())
+    elif sort == "name_desc":
+        merged.sort(key=lambda a: a["name"].lower(), reverse=True)
 
     progress = _get_progress(user.id)
 

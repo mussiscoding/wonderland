@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<p style="margin-bottom: 16px;"><a href="/genres" style="color: #e0e0e0; text-decoration: none;">&larr; Back to genres</a></p>
+
+<h2 style="margin-bottom: 8px;">{{ genre_name }}
+    {% if genre %}
+    {% if genre.category == "dance" %}
+    <span class="genre-tag dance">dance</span>
+    {% elif genre.category == "adjacent" %}
+    <span class="genre-tag" style="border-color: #f0b429; color: #f0b429;">adjacent</span>
+    {% elif genre.category == "other" %}
+    <span class="genre-tag">other</span>
+    {% else %}
+    <span class="genre-tag" style="border-color: #666; color: #666;">unclassified</span>
+    {% endif %}
+    {% endif %}
+</h2>
+
+<p class="count">{{ artists | length }} artists</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Score</th>
+            <th>Artist</th>
+            <th>Genres</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for artist in artists %}
+        <tr>
+            <td>
+                <span class="score {% if artist.effective_score >= 50 %}score-high{% elif artist.effective_score >= 30 %}score-med{% else %}score-low{% endif %}">
+                    {{ artist.effective_score | round(0) | int }}
+                </span>
+            </td>
+            <td><a href="/artist/{{ artist.id }}">{{ artist.name }}</a></td>
+            <td>
+                {% set artist_genres = artist.genres %}
+                {% include "_genre_tags.html" %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
