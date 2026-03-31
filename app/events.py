@@ -9,6 +9,7 @@ from app.scrapers.dice import fetch_london_events as fetch_dice_events
 from app.scrapers.ra import fetch_london_events as fetch_ra_events
 from app.scrapers.skiddle import fetch_london_events as fetch_skiddle_events
 from app.scrapers.ticketmaster import fetch_london_events as fetch_ticketmaster_events
+from app.scrapers.eventbrite import fetch_london_events as fetch_eventbrite_events
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def fetch_all_events(session: Session, user_id: int) -> dict:
         ("Skiddle", fetch_skiddle_events),
         ("Dice", fetch_dice_events),
         ("Ticketmaster", fetch_ticketmaster_events),
+        ("Eventbrite", fetch_eventbrite_events),
     ]
 
     for source_label, fetch_fn in sources:

@@ -1,4 +1,5 @@
 data/*.db
+data/eventbrite_venues.json
 .env
 __pycache__/
 *.pyc

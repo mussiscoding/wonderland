@@ -26,6 +26,7 @@ status: idea
 | Songkick | Dead | Paid commercial API with license fee. "Currently not approving API requests for student projects, educational purposes or hobbyist purposes." |
 | Shotgun | Blocked | No public API. Website is behind Vercel bot protection — can't scrape with simple HTTP requests. Would need Playwright/browser automation, which is a big dependency jump. Strong for London electronic/club events so worth revisiting if we add browser automation. |
 | FIXR | Dead | API is organiser-only — designed for event creators to read their own listings, not for third-party discovery. |
+| Fever (feverup.com) | Blocked | No public API. Internal search gateway exists (`data-search.apigw.feverup.com`) but endpoints aren't discoverable without reverse-engineering JS bundles. Same category as Shotgun — would need browser automation. |
 
 ## Potential future sources
 
