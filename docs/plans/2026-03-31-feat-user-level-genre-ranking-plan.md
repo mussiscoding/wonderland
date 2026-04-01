@@ -1,7 +1,7 @@
 ---
 title: "feat: User-Level Genre Ranking"
 type: feat
-status: active
+status: completed
 date: 2026-03-31
 brainstorm: docs/brainstorms/2026-03-31-user-level-genre-ranking-brainstorm.md
 ---
@@ -183,24 +183,24 @@ In `app/scoring.py`:
 
 ### Phase 1 (this work)
 
-- [ ] `UserGenreClassification` table created with correct schema
-- [ ] `genre_profile` column added to `User` (default "dance")
-- [ ] Existing users migrated: their artists' genres seeded from global `GenreClassification`
-- [ ] `/genres` page shows user's own genre classifications, artist counts scoped to their library
-- [ ] Existing `GenreClassification` categories migrated: dance→high, adjacent→medium, other→low
-- [ ] `CATEGORY_MULTIPLIERS` updated to use new labels (high/medium/low/unclassified)
-- [ ] Classify buttons (H/M/L) write to `UserGenreClassification`, rescore only that user
-- [ ] Auth added to classify endpoints (currently missing)
-- [ ] `seed_user_genres()` function works for migration, import sync, and reset
-- [ ] "Reset to defaults" button on `/genres` page
-- [ ] Import only fetches genres for artists new to the system
-- [ ] Import syncs new genres into importing user's `UserGenreClassification`
-- [ ] `get_genre_map(session, user_id)` reads from user's table
-- [ ] Admin classify route writes to global template, propagates to `user_modified = False` rows
-- [ ] `ADMIN_SPOTIFY_IDS` config setting for admin identity
-- [ ] Genre detail page shows only user's artists
-- [ ] Auto-populate block removed from `/genres` GET handler
-- [ ] `docs/front-end-spec.md` updated
+- [x] `UserGenreClassification` table created with correct schema
+- [x] `genre_profile` column added to `User` (default "dance")
+- [x] Existing users migrated: their artists' genres seeded from global `GenreClassification`
+- [x] `/genres` page shows user's own genre classifications, artist counts scoped to their library
+- [x] Existing `GenreClassification` categories migrated: dance→high, adjacent→medium, other→low
+- [x] `CATEGORY_MULTIPLIERS` updated to use new labels (high/medium/low/unclassified)
+- [x] Classify buttons (H/M/L) write to `UserGenreClassification`, rescore only that user
+- [x] Auth added to classify endpoints (currently missing)
+- [x] `seed_user_genres()` function works for migration, import sync, and reset
+- [x] "Reset to defaults" button on `/genres` page
+- [x] Import only fetches genres for artists new to the system
+- [x] Import syncs new genres into importing user's `UserGenreClassification`
+- [x] `get_genre_map(session, user_id)` reads from user's table
+- [x] Admin classify route writes to global template, propagates to `user_modified = False` rows
+- [x] `ADMIN_SPOTIFY_IDS` config setting for admin identity
+- [x] Genre detail page shows only user's artists
+- [x] Auto-populate block removed from `/genres` GET handler
+- [x] `docs/front-end-spec.md` updated
 
 ### Testing
 
