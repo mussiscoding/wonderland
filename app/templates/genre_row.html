@@ -1,33 +1,33 @@
-<tr id="genre-{{ genre.id }}">
-    <td><a href="/genre/{{ genre.name | urlencode }}">{{ genre.name }}</a></td>
+<tr id="genre-{{ genre.genre_name | replace(' ', '-') }}">
+    <td><a href="/genre/{{ genre.genre_name | urlencode }}">{{ genre.genre_name }}</a></td>
     <td>{{ artist_count }}</td>
     <td>
-        {% if genre.category == "dance" %}
-        <span class="genre-tag dance">dance</span>
-        {% elif genre.category == "adjacent" %}
-        <span class="genre-tag adjacent">adjacent</span>
-        {% elif genre.category == "other" %}
-        <span class="genre-tag other">other</span>
+        {% if genre.category == "high" %}
+        <span class="genre-tag high">high</span>
+        {% elif genre.category == "medium" %}
+        <span class="genre-tag medium">medium</span>
+        {% elif genre.category == "low" %}
+        <span class="genre-tag low">low</span>
         {% else %}
         <span class="genre-tag">unclassified</span>
         {% endif %}
     </td>
     <td>
         <div style="display: flex; gap: 4px;">
-            <form hx-post="/genres/{{ genre.id }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
-                  action="/genres/{{ genre.id }}/classify" method="post" style="display:inline;">
-                <input type="hidden" name="category" value="dance">
-                <button type="submit" class="btn-tiny {% if genre.category == 'dance' %}active{% endif %}">D</button>
+            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.genre_name | replace(' ', '-') }}" hx-swap="outerHTML"
+                  action="/genres/{{ genre.genre_name | urlencode }}/classify" method="post" style="display:inline;">
+                <input type="hidden" name="category" value="high">
+                <button type="submit" class="btn-tiny {% if genre.category == 'high' %}active-high{% endif %}">H</button>
             </form>
-            <form hx-post="/genres/{{ genre.id }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
-                  action="/genres/{{ genre.id }}/classify" method="post" style="display:inline;">
-                <input type="hidden" name="category" value="adjacent">
-                <button type="submit" class="btn-tiny {% if genre.category == 'adjacent' %}active-adj{% endif %}">A</button>
+            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.genre_name | replace(' ', '-') }}" hx-swap="outerHTML"
+                  action="/genres/{{ genre.genre_name | urlencode }}/classify" method="post" style="display:inline;">
+                <input type="hidden" name="category" value="medium">
+                <button type="submit" class="btn-tiny {% if genre.category == 'medium' %}active-medium{% endif %}">M</button>
             </form>
-            <form hx-post="/genres/{{ genre.id }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
-                  action="/genres/{{ genre.id }}/classify" method="post" style="display:inline;">
-                <input type="hidden" name="category" value="other">
-                <button type="submit" class="btn-tiny {% if genre.category == 'other' %}active-other{% endif %}">O</button>
+            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.genre_name | replace(' ', '-') }}" hx-swap="outerHTML"
+                  action="/genres/{{ genre.genre_name | urlencode }}/classify" method="post" style="display:inline;">
+                <input type="hidden" name="category" value="low">
+                <button type="submit" class="btn-tiny {% if genre.category == 'low' %}active-low{% endif %}">L</button>
             </form>
         </div>
     </td>

@@ -7,24 +7,24 @@
 <h2 style="margin-bottom: 8px;">{{ genre_name }}
     {% if genre %}
     <span class="classify-wrap" style="position:relative;display:inline-block;">
-        <span class="genre-tag {% if genre.category == 'dance' %}dance{% elif genre.category == 'adjacent' %}adjacent{% elif genre.category == 'other' %}other{% endif %}"
+        <span class="genre-tag {% if genre.category == 'high' %}high{% elif genre.category == 'medium' %}medium{% elif genre.category == 'low' %}low{% endif %}"
               style="cursor:pointer;"
               onclick="var p=this.parentElement.querySelector('.classify-popup');if(p.hidden){p.hidden=false;p.style.display='flex';}else{p.hidden=true;p.style.display='';}">
             {{ genre.category or "unclassified" }}
         </span>
         <span class="classify-popup" hidden
               style="position:absolute;top:100%;left:0;margin-top:4px;gap:4px;background:#0a0a0a;padding:6px;border-radius:4px;border:1px solid #333;z-index:10;">
-            <form hx-post="/genres/{{ genre.id }}/classify" hx-on::after-request="location.reload()" style="display:inline;">
-                <input type="hidden" name="category" value="dance">
-                <button type="submit" class="btn-tiny {% if genre.category == 'dance' %}active{% endif %}">D</button>
+            <form hx-post="/genres/{{ genre_name | urlencode }}/classify" hx-on::after-request="location.reload()" style="display:inline;">
+                <input type="hidden" name="category" value="high">
+                <button type="submit" class="btn-tiny {% if genre.category == 'high' %}active-high{% endif %}">H</button>
             </form>
-            <form hx-post="/genres/{{ genre.id }}/classify" hx-on::after-request="location.reload()" style="display:inline;">
-                <input type="hidden" name="category" value="adjacent">
-                <button type="submit" class="btn-tiny {% if genre.category == 'adjacent' %}active-adj{% endif %}">A</button>
+            <form hx-post="/genres/{{ genre_name | urlencode }}/classify" hx-on::after-request="location.reload()" style="display:inline;">
+                <input type="hidden" name="category" value="medium">
+                <button type="submit" class="btn-tiny {% if genre.category == 'medium' %}active-medium{% endif %}">M</button>
             </form>
-            <form hx-post="/genres/{{ genre.id }}/classify" hx-on::after-request="location.reload()" style="display:inline;">
-                <input type="hidden" name="category" value="other">
-                <button type="submit" class="btn-tiny {% if genre.category == 'other' %}active-other{% endif %}">O</button>
+            <form hx-post="/genres/{{ genre_name | urlencode }}/classify" hx-on::after-request="location.reload()" style="display:inline;">
+                <input type="hidden" name="category" value="low">
+                <button type="submit" class="btn-tiny {% if genre.category == 'low' %}active-low{% endif %}">L</button>
             </form>
         </span>
     </span>

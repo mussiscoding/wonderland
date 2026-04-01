@@ -1,15 +1,36 @@
-from fastapi import APIRouter, Depends, Form, Request
+import logging
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_session
-from app.models import ArtistGenre, GenreClassification, Artist, UserArtist
-from app.scoring import rescore_all_users, get_genre_map
+from app.models import ArtistGenre, GenreClassification, Artist, UserArtist, UserGenreClassification
+from app.scoring import get_genre_map, rescore_user_artists, seed_user_genres
 from app.templating import templates
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+VALID_CATEGORIES = ("high", "medium", "low", "unclassified")
+
+_admin_ids = None
+
+
+def _get_admin_ids() -> set[str]:
+    global _admin_ids
+    if _admin_ids is None:
+        raw = settings.admin_spotify_ids
+        _admin_ids = {s.strip() for s in raw.split(",") if s.strip()} if raw else set()
+    return _admin_ids
+
+
+def _is_admin(user) -> bool:
+    return user.spotify_id in _get_admin_ids()
 
 
 @router.get("/genres", response_class=HTMLResponse)
@@ -24,38 +45,55 @@ def list_genres(
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    # Auto-populate from existing ArtistGenre if the classification table is empty
-    if session.exec(select(GenreClassification).limit(1)).first() is None:
-        existing_genres = session.exec(
-            select(ArtistGenre.genre_name).distinct()
-        ).all()
-        for genre_name in existing_genres:
-            session.add(GenreClassification(name=genre_name))
-        if existing_genres:
-            session.commit()
-
+    # Query user's genre classifications
     genres = session.exec(
-        select(GenreClassification).order_by(GenreClassification.name)
+        select(UserGenreClassification)
+        .where(UserGenreClassification.user_id == user.id)
+        .order_by(UserGenreClassification.genre_name)
     ).all()
+
+    if not genres:
+        # No genres yet — show empty state
+        return templates.TemplateResponse(
+            request,
+            "genres.html",
+            {
+                "genres": [],
+                "genre_counts": {},
+                "q": q,
+                "category": category,
+                "sort": sort,
+                "total_count": 0,
+                "current_user": user,
+            },
+        )
 
     if q:
         q_lower = q.lower()
-        genres = [g for g in genres if q_lower in g.name]
+        genres = [g for g in genres if q_lower in g.genre_name]
 
     if category:
         genres = [g for g in genres if g.category == category]
 
-    # Count artists per genre via junction table
-    count_results = session.exec(
-        select(ArtistGenre.genre_name, func.count(ArtistGenre.artist_id))
-        .group_by(ArtistGenre.genre_name)
+    # Count artists per genre scoped to user's library
+    user_artist_ids = session.exec(
+        select(UserArtist.artist_id).where(UserArtist.user_id == user.id)
     ).all()
-    genre_counts = dict(count_results)
+
+    if user_artist_ids:
+        count_results = session.exec(
+            select(ArtistGenre.genre_name, func.count(ArtistGenre.artist_id))
+            .where(ArtistGenre.artist_id.in_(user_artist_ids))
+            .group_by(ArtistGenre.genre_name)
+        ).all()
+        genre_counts = dict(count_results)
+    else:
+        genre_counts = {}
 
     if sort == "artists_desc":
-        genres.sort(key=lambda g: genre_counts.get(g.name, 0), reverse=True)
+        genres.sort(key=lambda g: genre_counts.get(g.genre_name, 0), reverse=True)
     elif sort == "artists_asc":
-        genres.sort(key=lambda g: genre_counts.get(g.name, 0))
+        genres.sort(key=lambda g: genre_counts.get(g.genre_name, 0))
 
     return templates.TemplateResponse(
         request,
@@ -82,15 +120,19 @@ def genre_detail(
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    genre = session.exec(
-        select(GenreClassification).where(GenreClassification.name == genre_name)
+    # Get user's classification for this genre
+    ugc = session.exec(
+        select(UserGenreClassification).where(
+            UserGenreClassification.user_id == user.id,
+            UserGenreClassification.genre_name == genre_name,
+        )
     ).first()
 
-    # Single joined query: artists with this genre + their user scores
+    # Artists with this genre scoped to user's library
     results = session.exec(
         select(Artist, UserArtist)
         .join(ArtistGenre, ArtistGenre.artist_id == Artist.id)
-        .outerjoin(
+        .join(
             UserArtist,
             (UserArtist.artist_id == Artist.id) & (UserArtist.user_id == user.id),
         )
@@ -126,7 +168,7 @@ def genre_detail(
         "genre_detail.html",
         {
             "genre_name": genre_name,
-            "genre": genre,
+            "genre": ugc,
             "artists": matched,
             "genre_map": genre_map,
             "current_user": user,
@@ -134,54 +176,146 @@ def genre_detail(
     )
 
 
-@router.post("/genres/{genre_id}/classify")
+@router.post("/genres/{genre_name:path}/classify")
 def classify_genre(
     request: Request,
-    genre_id: int,
+    genre_name: str,
     category: str = Form(),
     session: Session = Depends(get_session),
 ):
-    genre = session.get(GenreClassification, genre_id)
-    if genre and category in ("dance", "adjacent", "other", "unclassified"):
-        genre.category = category
-        session.add(genre)
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    if category not in VALID_CATEGORIES:
+        return RedirectResponse("/genres", status_code=303)
+
+    # Update user's classification
+    ugc = session.exec(
+        select(UserGenreClassification).where(
+            UserGenreClassification.user_id == user.id,
+            UserGenreClassification.genre_name == genre_name,
+        )
+    ).first()
+
+    if ugc:
+        ugc.category = category
+        ugc.user_modified = True
+        session.add(ugc)
         session.commit()
 
-        rescore_all_users(session)
+        rescore_user_artists(session, user.id)
 
     # If HTMX request, return just the updated row
     if request.headers.get("HX-Request"):
+        # Count user-scoped artists for this genre
+        user_artist_ids = session.exec(
+            select(UserArtist.artist_id).where(UserArtist.user_id == user.id)
+        ).all()
         artist_count = session.exec(
             select(func.count(ArtistGenre.id))
-            .where(ArtistGenre.genre_name == genre.name)
-        ).one()
+            .where(
+                ArtistGenre.genre_name == genre_name,
+                ArtistGenre.artist_id.in_(user_artist_ids),
+            )
+        ).one() if user_artist_ids else 0
         return templates.TemplateResponse(
             request,
             "genre_row.html",
-            {"genre": genre, "artist_count": artist_count},
+            {"genre": ugc, "artist_count": artist_count},
         )
 
-    # Otherwise redirect back to genres page
     return RedirectResponse("/genres", status_code=303)
 
 
 @router.post("/genres/bulk-classify")
 def bulk_classify(
+    request: Request,
     category: str = Form(),
-    genre_ids: str = Form(""),
+    genre_names: str = Form(""),
     session: Session = Depends(get_session),
 ):
-    if category not in ("dance", "adjacent", "other", "unclassified"):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    if category not in VALID_CATEGORIES:
         return RedirectResponse("/genres", status_code=303)
 
-    ids = [int(x) for x in genre_ids.split(",") if x.strip()]
-    for gid in ids:
-        genre = session.get(GenreClassification, gid)
-        if genre:
-            genre.category = category
-            session.add(genre)
+    names = [x.strip() for x in genre_names.split(",") if x.strip()]
+    for name in names:
+        ugc = session.exec(
+            select(UserGenreClassification).where(
+                UserGenreClassification.user_id == user.id,
+                UserGenreClassification.genre_name == name,
+            )
+        ).first()
+        if ugc:
+            ugc.category = category
+            ugc.user_modified = True
+            session.add(ugc)
     session.commit()
 
-    rescore_all_users(session)
+    rescore_user_artists(session, user.id)
+
+    return RedirectResponse("/genres", status_code=303)
+
+
+@router.post("/genres/reset")
+def reset_genres(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    seed_user_genres(session, user.id, replace=True)
+    rescore_user_artists(session, user.id)
+
+    return RedirectResponse("/genres", status_code=303)
+
+
+@router.post("/admin/genres/{genre_name:path}/classify")
+def admin_classify_genre(
+    request: Request,
+    genre_name: str,
+    category: str = Form(),
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user or not _is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if category not in VALID_CATEGORIES:
+        return RedirectResponse("/genres", status_code=303)
+
+    # Update global template
+    gc = session.exec(
+        select(GenreClassification).where(GenreClassification.name == genre_name)
+    ).first()
+    if gc:
+        gc.category = category
+        session.add(gc)
+        session.commit()
+
+    # Propagate to users who haven't manually overridden this genre
+    user_rows = session.exec(
+        select(UserGenreClassification).where(
+            UserGenreClassification.genre_name == genre_name,
+            UserGenreClassification.user_modified == False,  # noqa: E712
+        )
+    ).all()
+
+    affected_user_ids = set()
+    for ugc in user_rows:
+        ugc.category = category
+        session.add(ugc)
+        affected_user_ids.add(ugc.user_id)
+    session.commit()
+
+    # Rescore affected users
+    for uid in affected_user_ids:
+        rescore_user_artists(session, uid)
 
     return RedirectResponse("/genres", status_code=303)
