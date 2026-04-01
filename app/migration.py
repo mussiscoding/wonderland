@@ -1,4 +1,4 @@
-"""One-time migration from single-user Artist scores to multi-user UserArtist records."""
+"""Database migrations. Runs on startup, detects what's needed."""
 
 import json
 import logging
@@ -7,10 +7,17 @@ import os
 from sqlmodel import Session, SQLModel, select, text
 
 from app.database import engine
-from app.models import User, UserArtist, ArtistGenre  # noqa: F401 - registers models
+from app.models import User, UserArtist, ArtistGenre, UserGenreClassification  # noqa: F401 - registers models
 import app.models  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+# Old category names → new category names
+_CATEGORY_REMAP = {
+    "dance": "high",
+    "adjacent": "medium",
+    "other": "low",
+}
 
 
 def run_migration():
@@ -31,6 +38,13 @@ def run_migration():
 
         # Populate ArtistGenre junction table from Artist.genres JSON
         _migrate_genres_to_junction_table(session)
+
+        # Add genre_profile column to User if missing
+        _add_genre_profile_column(session)
+
+        # Migrate genre categories and seed per-user genre classifications
+        _migrate_genre_categories(session)
+        _seed_user_genre_classifications(session)
 
 
 def _migrate_to_multi_user(session: Session):
@@ -153,3 +167,59 @@ def _migrate_genres_to_junction_table(session: Session):
         logger.info("  Dropped Artist.genres column")
     except Exception:
         pass
+
+
+def _add_genre_profile_column(session: Session):
+    """Add genre_profile column to User table if it doesn't exist."""
+    try:
+        session.exec(text("SELECT genre_profile FROM user LIMIT 1")).all()
+    except Exception:
+        logger.info("Adding genre_profile column to User table...")
+        session.exec(text("ALTER TABLE user ADD COLUMN genre_profile VARCHAR DEFAULT 'dance'"))
+        session.commit()
+
+
+def _migrate_genre_categories(session: Session):
+    """Remap GenreClassification categories: dance→high, adjacent→medium, other→low."""
+    from app.models import GenreClassification
+
+    # Check if any rows still use old category names
+    old_rows = session.exec(
+        select(GenreClassification).where(
+            GenreClassification.category.in_(["dance", "adjacent", "other"])
+        )
+    ).all()
+    if not old_rows:
+        return
+
+    logger.info(f"Remapping {len(old_rows)} genre classifications to new category names...")
+    for gc in old_rows:
+        gc.category = _CATEGORY_REMAP.get(gc.category, gc.category)
+        session.add(gc)
+    session.commit()
+    logger.info("  Genre category remap complete")
+
+
+def _seed_user_genre_classifications(session: Session):
+    """Seed UserGenreClassification for existing users who don't have any rows yet."""
+    from app.scoring import seed_user_genres
+
+    # Check if table exists and has any rows already
+    try:
+        existing_count = session.exec(
+            text("SELECT COUNT(*) FROM usergenreclassification")
+        ).one()
+        if existing_count[0] > 0:
+            return
+    except Exception:
+        # Table doesn't exist yet — will be created by create_all
+        return
+
+    users = session.exec(select(User)).all()
+    if not users:
+        return
+
+    logger.info(f"Seeding UserGenreClassification for {len(users)} existing users...")
+    for user in users:
+        seed_user_genres(session, user.id)
+    logger.info("  User genre seeding complete")

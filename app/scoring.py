@@ -1,12 +1,19 @@
 from sqlmodel import Session, select
 
-from app.models import Artist, ArtistGenre, GenreClassification, User, UserArtist
+from app.models import (
+    Artist,
+    ArtistGenre,
+    GenreClassification,
+    User,
+    UserArtist,
+    UserGenreClassification,
+)
 
 # Multipliers per category
 CATEGORY_MULTIPLIERS = {
-    "dance": 1.0,
-    "adjacent": 0.5,
-    "other": 0.1,
+    "high": 1.0,
+    "medium": 0.5,
+    "low": 0.1,
     "unclassified": 0.3,
 }
 
@@ -27,8 +34,20 @@ SIGNAL_WEIGHTS = {
 }
 
 
-def get_genre_map(session: Session) -> dict[str, str]:
-    """Load genre -> category mapping from DB."""
+def get_genre_map(session: Session, user_id: int | None = None) -> dict[str, str]:
+    """Load genre -> category mapping.
+
+    If user_id is provided, reads from UserGenreClassification.
+    Otherwise falls back to global GenreClassification (for migration/seeding).
+    """
+    if user_id is not None:
+        rows = session.exec(
+            select(UserGenreClassification).where(
+                UserGenreClassification.user_id == user_id
+            )
+        ).all()
+        return {r.genre_name: r.category for r in rows}
+
     classifications = session.exec(select(GenreClassification)).all()
     return {gc.name: gc.category for gc in classifications}
 
@@ -84,9 +103,84 @@ def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[
     return min(round(score, 1), 100.0)
 
 
+def seed_user_genres(session: Session, user_id: int, replace: bool = False) -> None:
+    """Copy genres for a user's artists from their profile template.
+
+    replace=False (default): insert only genres the user doesn't have yet.
+    replace=True: delete all user's genre rows and re-seed from template.
+      Genres not in the template get set to unclassified.
+    """
+    # Get the user's artist IDs
+    user_artist_ids = session.exec(
+        select(UserArtist.artist_id).where(UserArtist.user_id == user_id)
+    ).all()
+    if not user_artist_ids:
+        return
+
+    # Get all genre names for the user's artists
+    artist_genres = session.exec(
+        select(ArtistGenre.genre_name)
+        .where(ArtistGenre.artist_id.in_(user_artist_ids))
+        .distinct()
+    ).all()
+    if not artist_genres:
+        return
+
+    # Load the global template
+    template = {
+        gc.name: gc.category
+        for gc in session.exec(select(GenreClassification)).all()
+    }
+
+    if replace:
+        # Delete all existing user genre rows
+        existing = session.exec(
+            select(UserGenreClassification).where(
+                UserGenreClassification.user_id == user_id
+            )
+        ).all()
+        for row in existing:
+            session.delete(row)
+        session.flush()
+
+        # Re-seed all genres from template
+        for genre_name in artist_genres:
+            category = template.get(genre_name, "unclassified")
+            session.add(
+                UserGenreClassification(
+                    user_id=user_id,
+                    genre_name=genre_name,
+                    category=category,
+                    user_modified=False,
+                )
+            )
+    else:
+        # Only insert genres the user doesn't have yet
+        existing_names = set(
+            session.exec(
+                select(UserGenreClassification.genre_name).where(
+                    UserGenreClassification.user_id == user_id
+                )
+            ).all()
+        )
+        for genre_name in artist_genres:
+            if genre_name not in existing_names:
+                category = template.get(genre_name, "unclassified")
+                session.add(
+                    UserGenreClassification(
+                        user_id=user_id,
+                        genre_name=genre_name,
+                        category=category,
+                        user_modified=False,
+                    )
+                )
+
+    session.commit()
+
+
 def rescore_user_artists(session: Session, user_id: int) -> None:
     """Recompute auto_score for all of a user's artists."""
-    genre_map = get_genre_map(session)
+    genre_map = get_genre_map(session, user_id)
 
     user_artists = session.exec(
         select(UserArtist).where(UserArtist.user_id == user_id)

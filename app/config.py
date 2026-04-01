@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///data/wonderland.db"
 
+    # Admin identity (comma-separated Spotify IDs)
+    admin_spotify_ids: str = ""
+
     # Optional API keys for scrapers / enrichment
     dice_api_key: str = ""
     skiddle_api_key: str = ""

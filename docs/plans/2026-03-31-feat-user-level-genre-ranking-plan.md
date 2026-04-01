@@ -188,7 +188,7 @@ In `app/scoring.py`:
 - [ ] Existing users migrated: their artists' genres seeded from global `GenreClassification`
 - [ ] `/genres` page shows user's own genre classifications, artist counts scoped to their library
 - [ ] Existing `GenreClassification` categories migrated: dance→high, adjacent→medium, other→low
-- [ ] `CATEGORY_MULTIPLIERS` updated to use new labels (high/medium/low/none/unclassified)
+- [ ] `CATEGORY_MULTIPLIERS` updated to use new labels (high/medium/low/unclassified)
 - [ ] Classify buttons (H/M/L) write to `UserGenreClassification`, rescore only that user
 - [ ] Auth added to classify endpoints (currently missing)
 - [ ] `seed_user_genres()` function works for migration, import sync, and reset
