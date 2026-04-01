@@ -18,7 +18,7 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ### Genre tags (shared component)
 - Appear on Artists, Artist Detail, Genre Detail, and Events pages
-- Pill-shaped tags showing genre name, colour-coded by classification: green (dance), amber (adjacent), grey (other/unclassified)
+- Pill-shaped tags showing genre name, colour-coded by user's classification: green (high), amber (medium), grey (low/unclassified)
 - Clickable — link to `/genre/{name}` detail page
 - Visually identical whether clickable or not (no underline, no link colour)
 - When many genres: show all that fit in 2 rows, overflow hidden (height computed dynamically from actual tag size)
@@ -45,7 +45,7 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Score divider**: when sorted by score descending, a dashed line appears between score 30 and below with text "below this line: probably not going to dance to these"
 - **Artist name**: clickable, links to artist detail page
 - **Genre tags**: shared component (see above)
-- **Signals column**: shows breakdown of scoring signals — followed, saved tracks, intentional plays, playlist appearances, top artist ranges — each with point values. Ends with genre multiplier (e.g. "×1.0 dance")
+- **Signals column**: shows breakdown of scoring signals — followed, saved tracks, intentional plays, playlist appearances, top artist ranges — each with point values. Ends with genre multiplier (e.g. "×1.0 genre match")
 
 ### Import progress
 - When import is running, an inline progress indicator appears next to the Re-import button
@@ -94,19 +94,25 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ## Genres (`/genres`)
 
+Genre data is per-user — each user has their own genre classifications via `UserGenreClassification`. Artist counts are scoped to the user's library.
+
+### Empty state
+- No genres yet (user hasn't imported): "No genres yet" message with link to Artists page to import
+
 ### Controls
 - **Search box**: filters genres by name. Results update live after 300ms pause in typing. URL updates.
-- **Category dropdown**: filters by classification (All, Unclassified, Dance, Adjacent, Other). Triggers filter on change.
+- **Category dropdown**: filters by classification (All, Unclassified, High, Medium, Low). Triggers filter on change.
+- **Reset to defaults button**: resets all genre classifications to the profile template defaults. Requires confirmation dialog. Positioned right-aligned in controls bar.
 
 ### Table
 - Columns: Genre, Artists, Category, Actions
 - **Genre name**: clickable, links to genre detail page
 - **Artists header**: clickable, toggles sort by artist count (descending ▼ → ascending ▲ → default)
-- **Artists column**: count of artists with this genre
-- **Category column**: shows classification as a coloured tag
-- **Actions column**: three small buttons (D, A, O) for classifying genre as Dance, Adjacent, or Other
-  - Active classification is highlighted (green for D, amber for A, grey for O)
-  - Clicking a button immediately reclassifies the genre, updates just that row inline (no full page reload), and triggers a rescore of all users' artists in the background
+- **Artists column**: count of user's artists with this genre
+- **Category column**: shows classification as a coloured tag (green for high, amber for medium, grey for low/unclassified)
+- **Actions column**: three small buttons (H, M, L) for classifying genre as High, Medium, or Low
+  - Active classification is highlighted (green for H, amber for M, grey for L)
+  - Clicking a button immediately reclassifies the genre for this user only, updates just that row inline (no full page reload), and triggers a rescore of the user's artists
 
 ---
 
@@ -116,13 +122,14 @@ Describes the desired user interactions and page responses across all pages. Imp
 - "← Back to genres" link at top
 
 ### Header
-- Genre name with classification badge (coloured tag showing dance/adjacent/other/unclassified)
-- **Classification badge is clickable** — shows a D/A/O popup to reclassify the genre inline. Triggers rescore and page reload on selection.
-- Artist count
+- Genre name with classification badge (coloured tag showing user's classification: high/medium/low/unclassified)
+- **Classification badge is clickable** — shows an H/M/L popup to reclassify the genre inline. Triggers rescore and page reload on selection.
+- Artist count (scoped to user's library)
 
 ### Table
 - Columns: Score, Artist, Genres
 - Sorted by score descending
+- Only shows artists in the user's library
 - **Artist name**: clickable, links to artist detail page
 - **Genre tags**: shared component
 
