@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.models import Artist, ArtistGenre, GenreClassification, UserArtist
-from app.scoring import compute_auto_score, get_genre_map, rescore_user_artists
+from app.scoring import compute_auto_score, get_genre_map, rescore_user_artists, seed_user_genres
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +130,9 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
     # Ensure all genres exist in the classification table
     _sync_genre_classifications(session, artist_data)
 
+    # Seed new genres into importing user's UserGenreClassification
+    seed_user_genres(session, user_id)
+
     # Final rescore using DB genres + existing classifications
     progress["step"] = "Rescoring with genres..."
     rescore_user_artists(session, user_id)
@@ -152,7 +155,7 @@ def _upsert_user_artists(
     existing_by_sid: dict,
 ) -> None:
     """Create or update UserArtist records with current scores."""
-    genre_map = get_genre_map(session)
+    genre_map = get_genre_map(session, user_id)
     existing_ua = {
         ua.artist_id: ua for ua in session.exec(
             select(UserArtist).where(UserArtist.user_id == user_id)
@@ -401,7 +404,8 @@ def backfill_lastfm(session: Session, user_id: int):
 
     # Sync any new genres into classification table and rescore
     _sync_genre_classifications(session, {sid: d for sid, d in artist_data.items() if d["genres"]})
-    genre_map = get_genre_map(session)
+    seed_user_genres(session, user_id)
+    genre_map = get_genre_map(session, user_id)
 
     for sid, data in artist_data.items():
         if data["genres"]:

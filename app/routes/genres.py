@@ -119,7 +119,7 @@ def genre_detail(
         })
 
     matched.sort(key=lambda a: a["effective_score"], reverse=True)
-    genre_map = get_genre_map(session)
+    genre_map = get_genre_map(session, user.id)
 
     return templates.TemplateResponse(
         request,
