@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="margin-bottom: 20px;">Admin</h2>
+
+<div style="background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; max-width: 500px;">
+    <h3 style="margin-bottom: 12px;">Fetch Events</h3>
+    <p style="color: #888; font-size: 13px; margin-bottom: 16px;">Scrape events from RA, Ticketmaster, Eventbrite, etc. This takes a few minutes.</p>
+    <form method="post" action="/admin/fetch" style="display:flex;gap:8px;align-items:center;">
+        <select name="city" style="width:auto;">
+            {% for key, cfg in city_options.items() %}
+            <option value="{{ key }}">{{ cfg.label }}</option>
+            {% endfor %}
+            <option value="both">Both</option>
+        </select>
+        <button class="btn" type="submit">Fetch Events</button>
+    </form>
+    {% if progress and progress.running %}
+    <p style="color: #f0b429; margin-top: 12px; font-size: 13px;">Fetch in progress: {{ progress.step }}</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -4,16 +4,14 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from app.scrapers.base import RateLimiter, parse_iso_datetime
+from app.scrapers.base import RateLimiter, format_price, parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
 GRAPHQL_URL = "https://ra.co/graphql"
-LONDON_AREA_CODE = 13
 
 HEADERS = {
     "Content-Type": "application/json",
-    "Referer": "https://ra.co/events/uk/london",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0)",
 }
 
@@ -58,11 +56,15 @@ PAGE_SIZE = 50
 rate_limiter = RateLimiter(min_delay=1.5)
 
 
-def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[dict]:
-    """Fetch all London events from RA for the next N days.
+def fetch_events(city_config: dict, days: int = 60, progress: dict | None = None) -> list[dict]:
+    """Fetch events from RA for the next N days.
 
     Returns a list of normalised event dicts ready for storage.
     """
+    area_code = city_config["ra_area_code"]
+    city_label = city_config["label"]
+    currency = city_config["currency"]
+
     now = datetime.now(timezone.utc)
     start = now.strftime("%Y-%m-%dT00:00:00.000Z")
     end = (now + timedelta(days=days)).strftime("%Y-%m-%dT23:59:59.999Z")
@@ -77,7 +79,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
             "operationName": "GET_EVENT_LISTINGS",
             "variables": {
                 "filters": {
-                    "areas": {"eq": LONDON_AREA_CODE},
+                    "areas": {"eq": area_code},
                     "listingDate": {"gte": start, "lte": end},
                 },
                 "filterOptions": {"genre": True},
@@ -106,7 +108,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
 
         for item in items:
             event = item.get("event", {})
-            normalised = _normalise_event(event)
+            normalised = _normalise_event(event, city_label, currency)
             if normalised:
                 all_events.append(normalised)
 
@@ -126,7 +128,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
     return all_events
 
 
-def _normalise_event(event: dict) -> dict | None:
+def _normalise_event(event: dict, city_label: str, currency: str) -> dict | None:
     """Convert an RA event into our standard format."""
     if not event:
         return None
@@ -146,13 +148,13 @@ def _normalise_event(event: dict) -> dict | None:
     content_url = event.get("contentUrl", "")
     source_url = f"https://ra.co{content_url}" if content_url else None
 
-    price = _parse_cost(event.get("cost"))
+    price = _parse_cost(event.get("cost"), currency)
 
     return {
         "title": title,
         "date": dt,
         "venue_name": venue_name,
-        "venue_location": "London",
+        "venue_location": city_label,
         "lineup_raw": ", ".join(lineup) if lineup else None,
         "lineup_parsed": lineup,
         "source_name": "ra",
@@ -164,11 +166,11 @@ def _normalise_event(event: dict) -> dict | None:
     }
 
 
-def _parse_cost(cost: str | None) -> str | None:
+def _parse_cost(cost: str | None, currency: str = "£") -> str | None:
     """Parse RA's freeform cost string into a normalised price.
 
     Handles formats like '£8 - £30', '5', '£20 ', '0', empty string.
-    Returns the lowest price as '£X' or '£X.YY', or None if free/empty.
+    Returns the lowest price as '{currency}X' or '{currency}X.YY', or None if free/empty.
     """
     if not cost or not cost.strip():
         return None
@@ -182,6 +184,4 @@ def _parse_cost(cost: str | None) -> str | None:
     if min_price <= 0:
         return None
 
-    if min_price == int(min_price):
-        return f"£{min_price:.0f}"
-    return f"£{min_price:.2f}"
+    return format_price(min_price, currency)

@@ -4,29 +4,33 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from app.config import settings
-from app.scrapers.base import RateLimiter, parse_iso_datetime
+from app.scrapers.base import RateLimiter, format_price, parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://www.skiddle.com/api/v1"
-LONDON_LAT = 51.5074
-LONDON_LON = -0.1278
-RADIUS_MILES = 15
 PAGE_SIZE = 100  # Skiddle max
 
 rate_limiter = RateLimiter(min_delay=1.0)
 
 
-def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[dict]:
-    """Fetch London club events from Skiddle for the next N days.
+def fetch_events(city_config: dict, days: int = 60, progress: dict | None = None) -> list[dict]:
+    """Fetch club events from Skiddle for the next N days.
 
     Returns a list of normalised event dicts ready for storage.
     """
+    skiddle_config = city_config.get("skiddle")
+    if not skiddle_config:
+        logger.info(f"  Skiddle: {city_config['label']} not supported, skipping")
+        return []
+
     api_key = settings.skiddle_api_key
     if not api_key:
         logger.warning("  SKIDDLE_API_KEY not set, skipping Skiddle fetch")
         return []
 
+    city_label = city_config["label"]
+    currency = city_config["currency"]
     now = datetime.now(timezone.utc)
     min_date = now.strftime("%Y-%m-%d")
     max_date = (now + timedelta(days=days)).strftime("%Y-%m-%d")
@@ -39,9 +43,9 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
 
         params = {
             "api_key": api_key,
-            "latitude": LONDON_LAT,
-            "longitude": LONDON_LON,
-            "radius": RADIUS_MILES,
+            "latitude": skiddle_config["lat"],
+            "longitude": skiddle_config["lon"],
+            "radius": skiddle_config["radius"],
             "eventcode": "CLUB",
             "minDate": min_date,
             "maxDate": max_date,
@@ -70,7 +74,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
             break
 
         for item in results:
-            normalised = _normalise_event(item)
+            normalised = _normalise_event(item, city_label, currency)
             if normalised:
                 all_events.append(normalised)
 
@@ -91,7 +95,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
     return all_events
 
 
-def _normalise_event(event: dict) -> dict | None:
+def _normalise_event(event: dict, city_label: str, currency: str) -> dict | None:
     """Convert a Skiddle event into our standard format."""
     if not event:
         return None
@@ -119,7 +123,7 @@ def _normalise_event(event: dict) -> dict | None:
         try:
             p = float(entry_price)
             if p > 0:
-                price = f"£{p:.0f}" if p == int(p) else f"£{p:.2f}"
+                price = format_price(p, currency)
         except (ValueError, TypeError):
             pass
 
@@ -127,7 +131,7 @@ def _normalise_event(event: dict) -> dict | None:
         "title": title,
         "date": dt,
         "venue_name": venue_name,
-        "venue_location": "London",
+        "venue_location": city_label,
         "lineup_raw": ", ".join(lineup) if lineup else None,
         "lineup_parsed": lineup,
         "source_name": "skiddle",

@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 from app.database import init_db
 from app.migration import run_migration
-from app.routes import auth, artists, events, genres
+from app.routes import admin, auth, artists, events, genres
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(artists.router)
 app.include_router(events.router)

@@ -2,10 +2,16 @@
 {% block content %}
 <div class="controls">
     <form id="events-form" hx-get="/events" hx-target="#event-results" hx-select="#event-results" hx-swap="outerHTML"
-          hx-trigger="input changed delay:300ms from:find input, change from:find input[name='date_from'], change from:find input[name='date_to'], input changed delay:300ms from:find select, submit"
+          hx-trigger="input changed delay:300ms from:find input, change from:find input[name='date_from'], change from:find input[name='date_to'], change from:find select, input changed delay:300ms from:find select, submit"
           hx-push-url="true"
           method="get" action="/events" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
+        <select name="city" style="width:auto;">
+            {% for key, cfg in city_options.items() %}
+            <option value="{{ key }}" {% if city == key %}selected{% endif %}>{{ cfg.label }}</option>
+            {% endfor %}
+            <option value="all" {% if city == 'all' %}selected{% endif %}>All cities</option>
+        </select>
         <input type="date" name="date_from" value="{{ date_from }}" style="width:140px;" title="From date">
         <span style="color:#666;">–</span>
         <input type="date" name="date_to" value="{{ date_to }}" style="width:140px;" title="To date">
@@ -19,19 +25,18 @@
         <form method="get" action="/events" style="display:inline;">
             <input type="hidden" name="sort" value="{{ sort }}">
             <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="city" value="{{ city }}">
             <button class="btn btn-outline" type="submit">Matched only</button>
         </form>
         {% else %}
         <form method="get" action="/events" style="display:inline;">
             <input type="hidden" name="sort" value="{{ sort }}">
             <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="city" value="{{ city }}">
             <input type="hidden" name="show_all" value="1">
             <button class="btn btn-outline" type="submit">Show all</button>
         </form>
         {% endif %}
-        <form method="post" action="/events/fetch" style="display:inline;">
-            <button class="btn" type="submit">Fetch Events</button>
-        </form>
     </div>
 </div>
 <div class="controls" style="margin-top:-12px;gap:6px;">
@@ -50,12 +55,12 @@
     <thead>
         <tr>
             <th style="width:50px;white-space:nowrap;">
-                <a href="/events?q={{ q }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
+                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Score{% if sort == 'score' %} ▼{% elif sort == 'score_asc' %} ▲{% endif %}
                 </a>
             </th>
             <th style="white-space:nowrap;">
-                <a href="/events?q={{ q }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
+                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Date{% if sort == 'date' %} ▲{% elif sort == 'date_desc' %} ▼{% endif %}
                 </a>
             </th>
@@ -146,9 +151,9 @@
 <div class="empty-state">
     <h2>No events found</h2>
     {% if not show_all %}
-    <p>No matched events yet. <a href="/events?show_all=1" style="color:#1db954;">Show all events</a> or click "Fetch Events" to refresh.</p>
+    <p>No matched events yet. <a href="/events?city={{ city }}&show_all=1" style="color:#1db954;">Show all events</a> or <a href="/admin" style="color:#1db954;">fetch new events</a>.</p>
     {% else %}
-    <p>Click "Fetch Events" to search for upcoming London gigs.</p>
+    <p>No events found. <a href="/admin" style="color:#1db954;">Fetch events</a> from the Admin page.</p>
     {% endif %}
 </div>
 {% endif %}

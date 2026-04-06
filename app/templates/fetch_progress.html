@@ -3,7 +3,7 @@
 <div style="text-align:center; padding: 60px 20px;">
     <h2>Fetching Events</h2>
     <div id="progress-area"
-         hx-get="/events/fetch/progress-bar"
+         hx-get="/admin/fetch/progress-bar?city={{ city }}"
          hx-trigger="load, every 2s"
          hx-swap="innerHTML">
         <p class="progress-step">Starting...</p>

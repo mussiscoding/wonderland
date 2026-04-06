@@ -11,10 +11,8 @@ from app.scrapers.base import RateLimiter, parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
-VENUES_FILE = Path("data/eventbrite_venues.json")
 REFRESH_DAYS = 7
 API_BASE = "https://www.eventbriteapi.com/v3"
-BROWSE_URL = "https://www.eventbrite.co.uk/d/united-kingdom--london/music--events/"
 
 rate_limiter = RateLimiter(min_delay=0.5)
 
@@ -23,12 +21,12 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _load_venues() -> tuple[dict[str, str], datetime | None]:
+def _load_venues(venue_file: Path) -> tuple[dict[str, str], datetime | None]:
     """Load venue ID->name map and last_refreshed from JSON file."""
-    if not VENUES_FILE.exists():
+    if not venue_file.exists():
         return {}, None
     try:
-        data = json.loads(VENUES_FILE.read_text())
+        data = json.loads(venue_file.read_text())
         venues = data.get("venues", {})
         last_refreshed = None
         if data.get("last_refreshed"):
@@ -39,20 +37,20 @@ def _load_venues() -> tuple[dict[str, str], datetime | None]:
         return {}, None
 
 
-def _save_venues(venues: dict[str, str], last_refreshed: datetime):
+def _save_venues(venues: dict[str, str], last_refreshed: datetime, venue_file: Path):
     """Write venue ID->name map to JSON file."""
-    VENUES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    venue_file.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "last_refreshed": last_refreshed.isoformat(),
         "venues": venues,
     }
-    VENUES_FILE.write_text(json.dumps(data, indent=2))
+    venue_file.write_text(json.dumps(data, indent=2))
 
 
-def _discover_venues(token: str, progress: dict | None = None) -> dict[str, str]:
+def _discover_venues(token: str, browse_url: str, progress: dict | None = None) -> dict[str, str]:
     """Scrape Eventbrite browse pages to discover venue IDs.
 
-    Fetches London music browse pages, extracts event IDs from URLs,
+    Fetches music browse pages, extracts event IDs from URLs,
     then calls the events API to get venue info.
     """
     discovered: dict[str, str] = {}
@@ -62,7 +60,7 @@ def _discover_venues(token: str, progress: dict | None = None) -> dict[str, str]
     with httpx.Client(timeout=20, follow_redirects=True) as client:
         for page_num in range(1, 6):
             rate_limiter.wait()
-            url = BROWSE_URL if page_num == 1 else f"{BROWSE_URL}?page={page_num}"
+            url = browse_url if page_num == 1 else f"{browse_url}?page={page_num}"
             try:
                 resp = client.get(url)
                 resp.raise_for_status()
@@ -104,7 +102,7 @@ def _discover_venues(token: str, progress: dict | None = None) -> dict[str, str]
     return discovered
 
 
-def _fetch_venue_events(venue_id: str, venue_name: str, token: str) -> list[dict]:
+def _fetch_venue_events(venue_id: str, venue_name: str, token: str, city_label: str) -> list[dict]:
     """Fetch live events for a single venue."""
     events = []
     url = f"{API_BASE}/venues/{venue_id}/events/"
@@ -122,7 +120,7 @@ def _fetch_venue_events(venue_id: str, venue_name: str, token: str) -> list[dict
                 break
 
             for event in data.get("events", []):
-                normalised = _normalise_event(event, venue_name)
+                normalised = _normalise_event(event, venue_name, city_label)
                 if normalised:
                     events.append(normalised)
 
@@ -137,7 +135,7 @@ def _fetch_venue_events(venue_id: str, venue_name: str, token: str) -> list[dict
     return events
 
 
-def _normalise_event(event: dict, venue_name: str) -> dict | None:
+def _normalise_event(event: dict, venue_name: str, city_label: str) -> dict | None:
     """Convert an Eventbrite event into our standard format."""
     start = event.get("start", {})
     dt = parse_iso_datetime(start.get("local"))
@@ -159,7 +157,7 @@ def _normalise_event(event: dict, venue_name: str) -> dict | None:
         "title": title,
         "date": dt,
         "venue_name": venue_name,
-        "venue_location": "London",
+        "venue_location": city_label,
         "lineup_raw": title,
         "lineup_parsed": [title],
         "source_name": "eventbrite",
@@ -170,8 +168,8 @@ def _normalise_event(event: dict, venue_name: str) -> dict | None:
     }
 
 
-def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[dict]:
-    """Fetch London music events from Eventbrite.
+def fetch_events(city_config: dict, days: int = 270, progress: dict | None = None) -> list[dict]:
+    """Fetch music events from Eventbrite.
 
     Maintains a local venue ID cache with auto-refresh discovery.
     """
@@ -180,8 +178,12 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
         logger.warning("  EVENTBRITE_PRIVATE_TOKEN not set, skipping Eventbrite fetch")
         return []
 
+    city_label = city_config["label"]
+    browse_url = city_config["eventbrite_browse"]
+    venue_file = Path(city_config["eventbrite_venue_file"])
+
     # Load existing venues
-    venues, last_refreshed = _load_venues()
+    venues, last_refreshed = _load_venues(venue_file)
 
     # Run discovery if stale or missing
     now = datetime.now(timezone.utc)
@@ -193,11 +195,11 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
 
     if needs_refresh:
         if progress is not None:
-            progress["step"] = "Discovering Eventbrite venues..."
-        logger.info("  Eventbrite: running venue discovery...")
-        discovered = _discover_venues(token, progress=progress)
+            progress["step"] = f"Discovering Eventbrite venues ({city_label})..."
+        logger.info(f"  Eventbrite: running venue discovery for {city_label}...")
+        discovered = _discover_venues(token, browse_url, progress=progress)
         venues.update(discovered)
-        _save_venues(venues, now)
+        _save_venues(venues, now, venue_file)
         logger.info(f"  Eventbrite: {len(venues)} total venues after discovery")
 
     if not venues:
@@ -214,7 +216,7 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
             progress["current"] = i + 1
             progress["total"] = len(venue_list)
 
-        events = _fetch_venue_events(venue_id, venue_name, token)
+        events = _fetch_venue_events(venue_id, venue_name, token, city_label)
         all_events.extend(events)
 
     logger.info(f"  Eventbrite fetch complete: {len(all_events)} events from {len(venue_list)} venues")

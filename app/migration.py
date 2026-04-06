@@ -3,6 +3,9 @@
 import json
 import logging
 import os
+import shutil
+from datetime import datetime
+from pathlib import Path
 
 from sqlmodel import Session, SQLModel, select, text
 
@@ -45,6 +48,12 @@ def run_migration():
         # Migrate genre categories and seed per-user genre classifications
         _migrate_genre_categories(session)
         _seed_user_genre_classifications(session)
+
+        # Multi-city: backfill venue_location and recompute dedupe keys
+        _migrate_dedupe_keys_for_city(session)
+
+    # Rename old eventbrite venues file
+    _rename_eventbrite_venue_file()
 
 
 def _migrate_to_multi_user(session: Session):
@@ -223,3 +232,58 @@ def _seed_user_genre_classifications(session: Session):
     for user in users:
         seed_user_genres(session, user.id)
     logger.info("  User genre seeding complete")
+
+
+def _migrate_dedupe_keys_for_city(session: Session):
+    """Backfill venue_location and recompute dedupe keys to include city."""
+    from app.events import _dedupe_key
+
+    # Early exit: check if any keys still use old format (no city component)
+    # Old format has exactly one underscore: "venuename_2026-01-01"
+    # New format has two: "venuename_london_2026-01-01"
+    sample = session.exec(
+        text("SELECT dedupe_key FROM event WHERE dedupe_key NOT LIKE '%_%_%' LIMIT 1")
+    ).first()
+    if sample is None:
+        # Also check for NULL venue_location
+        null_location = session.exec(
+            text("SELECT id FROM event WHERE venue_location IS NULL LIMIT 1")
+        ).first()
+        if null_location is None:
+            return
+
+    rows = session.exec(text("SELECT id, venue_name, venue_location, date, dedupe_key FROM event")).all()
+    if not rows:
+        return
+
+    migrated = 0
+    for row_id, venue_name, venue_location, date_val, old_key in rows:
+        location = venue_location or "London"
+
+        # Parse date from SQLite string if needed
+        if isinstance(date_val, str):
+            dt = datetime.strptime(date_val[:19], "%Y-%m-%dT%H:%M:%S" if "T" in date_val else "%Y-%m-%d")
+        else:
+            dt = date_val
+
+        new_key = _dedupe_key(venue_name, dt, location)
+
+        if old_key != new_key or venue_location is None:
+            session.exec(
+                text("UPDATE event SET dedupe_key = :new_key, venue_location = :location WHERE id = :id"),
+                params={"new_key": new_key, "location": location, "id": row_id},
+            )
+            migrated += 1
+
+    if migrated > 0:
+        session.commit()
+        logger.info(f"  Migrated {migrated} event dedupe keys to include city")
+
+
+def _rename_eventbrite_venue_file():
+    """Rename old eventbrite_venues.json to city-specific name."""
+    old_path = Path("data/eventbrite_venues.json")
+    new_path = Path("data/eventbrite_venues_london.json")
+    if old_path.exists() and not new_path.exists():
+        shutil.move(str(old_path), str(new_path))
+        logger.info("  Renamed eventbrite_venues.json → eventbrite_venues_london.json")

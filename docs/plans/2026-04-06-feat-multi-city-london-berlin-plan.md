@@ -1,7 +1,7 @@
 ---
 title: "feat: Multi-city support (London + Berlin)"
 type: feat
-status: active
+status: completed
 date: 2026-04-06
 ---
 
@@ -137,18 +137,18 @@ Currency: each scraper's `_normalise_event` / `_parse_cost` uses the currency sy
 
 ## Acceptance Criteria
 
-- [ ] City dropdown on events page filters events by venue_location
-- [ ] Default city is London
-- [ ] Fetch form has city selector (London / Berlin / Both)
-- [ ] Berlin fetch uses RA (area 34), Ticketmaster (DE), Eventbrite (Berlin browse)
-- [ ] Dice and Skiddle are skipped gracefully for Berlin
-- [ ] Berlin event prices show € not £
-- [ ] Dedupe key includes city — no cross-city collisions
-- [ ] Existing London events have dedupe keys migrated
-- [ ] All existing filter controls (sort, search, dates, show_all) preserve city param
-- [ ] Artist detail page shows city column on matched events
-- [ ] Progress messages include city name when fetching
-- [ ] Front-end spec updated
+- [x] City dropdown on events page filters events by venue_location
+- [x] Default city is London
+- [x] Fetch form has city selector (London / Berlin / Both)
+- [x] Berlin fetch uses RA (area 34), Ticketmaster (DE), Eventbrite (Berlin browse)
+- [x] Dice and Skiddle are skipped gracefully for Berlin
+- [x] Berlin event prices show € not £
+- [x] Dedupe key includes city — no cross-city collisions
+- [x] Existing London events have dedupe keys migrated
+- [x] All existing filter controls (sort, search, dates, show_all) preserve city param
+- [x] Artist detail page shows city column on matched events
+- [x] Progress messages include city name when fetching
+- [x] Front-end spec updated
 
 ## Files to Change
 

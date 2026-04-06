@@ -17,6 +17,13 @@ def parse_iso_datetime(dt_str: str) -> datetime | None:
     return None
 
 
+def format_price(amount: float, currency: str) -> str:
+    """Format a price with currency symbol, dropping decimals if whole number."""
+    if amount == int(amount):
+        return f"{currency}{amount:.0f}"
+    return f"{currency}{amount:.2f}"
+
+
 class RateLimiter:
     """Simple rate limiter: minimum delay between requests."""
 

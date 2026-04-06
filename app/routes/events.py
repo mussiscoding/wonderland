@@ -1,15 +1,13 @@
 import logging
-import threading
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from app.auth import get_current_user
-from app.database import get_session, engine
-from app.events import fetch_all_events, _get_event_progress
-from app.matching import run_matching
+from app.cities import CITY_CONFIG
+from app.database import get_session
 from app.models import Artist, Event, EventSource, Match, UserArtist
 from app.scoring import compute_event_score
 from app.templating import templates
@@ -17,69 +15,6 @@ from app.templating import templates
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-_EMPTY_EVENT_PROGRESS = {"running": False, "done": False, "step": "", "current": 0, "total": 0}
-
-
-def _user_event_progress(user) -> dict:
-    """Get event progress dict for user, or empty default if no user."""
-    return _get_event_progress(user.id) if user else _EMPTY_EVENT_PROGRESS
-
-
-def _run_fetch_background(user_id: int):
-    """Run event fetch + matching in a background thread."""
-    progress = _get_event_progress(user_id)
-    with Session(engine) as session:
-        try:
-            fetch_all_events(session, user_id)
-            progress.update(running=True, step="Matching artists to events...", current=0, total=0)
-            run_matching(session)
-            progress.update(running=False, step="Done", done=True)
-        except Exception as e:
-            logger.error(f"Background event fetch failed: {e}")
-            progress.update(running=False, step=f"Error: {e}", done=False)
-
-
-@router.post("/events/fetch")
-def run_fetch(request: Request, session: Session = Depends(get_session)):
-    user = get_current_user(request, session)
-    if not user:
-        return RedirectResponse("/login", status_code=303)
-
-    progress = _get_event_progress(user.id)
-    if progress["running"]:
-        return RedirectResponse("/events/fetch/progress", status_code=303)
-
-    threading.Thread(target=_run_fetch_background, args=(user.id,), daemon=True).start()
-    return RedirectResponse("/events/fetch/progress", status_code=303)
-
-
-
-@router.get("/events/fetch/progress", response_class=HTMLResponse)
-def fetch_progress_page(request: Request, session: Session = Depends(get_session)):
-    user = get_current_user(request, session)
-    progress = _user_event_progress(user)
-
-    if progress["done"] and not progress["running"]:
-        return RedirectResponse("/events", status_code=303)
-
-    return templates.TemplateResponse(
-        request,
-        "fetch_progress.html",
-        {"progress": progress, "current_user": user},
-    )
-
-
-@router.get("/events/fetch/progress-bar", response_class=HTMLResponse)
-def fetch_progress_bar(request: Request, session: Session = Depends(get_session)):
-    user = get_current_user(request, session)
-    progress = _user_event_progress(user)
-    return templates.TemplateResponse(
-        request,
-        "fetch_progress_bar.html",
-        {"progress": progress},
-    )
 
 
 @router.get("/events", response_class=HTMLResponse)
@@ -90,13 +25,21 @@ def list_events(
     show_all: str = "",
     date_from: str = "",
     date_to: str = "",
+    city: str = "london",
     session: Session = Depends(get_session),
 ):
     user = get_current_user(request, session)
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    events = session.exec(select(Event)).all()
+    # Filter events by city
+    if city == "all":
+        events = session.exec(select(Event)).all()
+    else:
+        city_label = CITY_CONFIG.get(city, {}).get("label", city.title())
+        events = session.exec(
+            select(Event).where(Event.venue_location == city_label)
+        ).all()
 
     # Load all matches with artist info
     matches = session.exec(select(Match)).all()
@@ -199,6 +142,8 @@ def list_events(
             "total_count": len(events),
             "date_from": date_from,
             "date_to": date_to,
+            "city": city,
+            "city_options": CITY_CONFIG,
             "current_user": user,
         },
     )

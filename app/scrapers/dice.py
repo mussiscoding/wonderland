@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from app.config import settings
-from app.scrapers.base import RateLimiter, parse_iso_datetime
+from app.scrapers.base import RateLimiter, format_price, parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +19,23 @@ HEADERS = {
 rate_limiter = RateLimiter(min_delay=1.0)
 
 
-def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[dict]:
-    """Fetch London DJ/club events from DICE for the next N days.
+def fetch_events(city_config: dict, days: int = 60, progress: dict | None = None) -> list[dict]:
+    """Fetch DJ/club events from DICE for the next N days.
 
     Returns a list of normalised event dicts ready for storage.
     """
+    dice_city = city_config.get("dice_city")
+    if not dice_city:
+        logger.info(f"  Dice: {city_config['label']} not supported, skipping")
+        return []
+
     api_key = settings.dice_api_key
     if not api_key:
         logger.warning("  DICE_API_KEY not set, skipping Dice fetch")
         return []
 
+    city_label = city_config["label"]
+    currency = city_config["currency"]
     all_events = []
     page = 1
 
@@ -38,7 +45,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
         params = {
             "page[size]": PAGE_SIZE,
             "page[number]": page,
-            "filter[cities]": "london",
+            "filter[cities]": dice_city,
             "filter[type_tags]": "music:dj",
         }
 
@@ -56,7 +63,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
             break
 
         for item in items:
-            normalised = _normalise_event(item)
+            normalised = _normalise_event(item, city_label, currency)
             if normalised:
                 all_events.append(normalised)
 
@@ -76,7 +83,7 @@ def fetch_london_events(days: int = 60, progress: dict | None = None) -> list[di
     return all_events
 
 
-def _normalise_event(event: dict) -> dict | None:
+def _normalise_event(event: dict, city_label: str, currency: str) -> dict | None:
     """Convert a Dice event into our standard format."""
     if not event:
         return None
@@ -101,20 +108,20 @@ def _normalise_event(event: dict) -> dict | None:
     perm_name = event.get("perm_name", "")
     source_url = f"https://dice.fm/event/{event_hash}-{perm_name}" if event_hash else None
 
-    # Price: minor units (pence) → human-readable string
+    # Price: minor units (pence/cents) → human-readable string
     price = None
     ticket_types = event.get("ticket_types") or []
     if ticket_types:
         prices = [t["price"]["total"] for t in ticket_types if t.get("price", {}).get("total")]
         if prices:
             min_price = min(prices) / 100
-            price = f"£{min_price:.0f}" if min_price == int(min_price) else f"£{min_price:.2f}"
+            price = format_price(min_price, currency)
 
     return {
         "title": title,
         "date": dt,
         "venue_name": venue_name,
-        "venue_location": "London",
+        "venue_location": city_label,
         "lineup_raw": ", ".join(artists) if artists else None,
         "lineup_parsed": artists,
         "source_name": "dice",

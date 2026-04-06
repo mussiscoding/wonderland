@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from app.config import settings
-from app.scrapers.base import RateLimiter
+from app.scrapers.base import RateLimiter, format_price
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ CHUNK_DAYS = 30  # Split into monthly chunks to stay under pagination cap
 rate_limiter = RateLimiter(min_delay=0.25)  # 5 req/sec limit
 
 
-def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[dict]:
-    """Fetch London music events from Ticketmaster for the next N days.
+def fetch_events(city_config: dict, days: int = 270, progress: dict | None = None) -> list[dict]:
+    """Fetch music events from Ticketmaster for the next N days.
 
     Splits into monthly chunks to avoid Ticketmaster's pagination cap.
     Returns a list of normalised event dicts ready for storage.
@@ -27,6 +27,9 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
         logger.warning("  TICKETMASTER_API_KEY not set, skipping Ticketmaster fetch")
         return []
 
+    tm_config = city_config["ticketmaster"]
+    city_label = city_config["label"]
+    currency = city_config["currency"]
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=days)
 
@@ -50,8 +53,8 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
 
             params = {
                 "apikey": api_key,
-                "city": "London",
-                "countryCode": "GB",
+                "city": tm_config["city"],
+                "countryCode": tm_config["countryCode"],
                 "classificationName": "Music",
                 "startDateTime": start_str,
                 "endDateTime": end_str,
@@ -77,7 +80,7 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
                 break
 
             for item in items:
-                normalised = _normalise_event(item)
+                normalised = _normalise_event(item, city_label, currency)
                 if normalised:
                     all_events.append(normalised)
 
@@ -96,7 +99,7 @@ def fetch_london_events(days: int = 270, progress: dict | None = None) -> list[d
     return all_events
 
 
-def _normalise_event(event: dict) -> dict | None:
+def _normalise_event(event: dict, city_label: str, currency: str) -> dict | None:
     """Convert a Ticketmaster event into our standard format."""
     if not event:
         return None
@@ -141,13 +144,13 @@ def _normalise_event(event: dict) -> dict | None:
     if price_ranges:
         min_price = price_ranges[0].get("min")
         if min_price is not None:
-            price = f"£{min_price:.0f}" if min_price == int(min_price) else f"£{min_price:.2f}"
+            price = format_price(min_price, currency)
 
     return {
         "title": title,
         "date": dt,
         "venue_name": venue_name,
-        "venue_location": "London",
+        "venue_location": city_label,
         "lineup_raw": ", ".join(lineup) if lineup else None,
         "lineup_parsed": lineup,
         "source_name": "ticketmaster",

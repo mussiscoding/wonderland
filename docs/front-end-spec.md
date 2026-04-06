@@ -7,7 +7,7 @@ Describes the desired user interactions and page responses across all pages. Imp
 ## Global
 
 ### Layout
-- Fixed nav bar at top: **Artists**, **Events**, **Genres** links
+- Fixed nav bar at top: **Artists**, **Events**, **Genres**, **Admin** links
 - User area in nav (right-aligned): shows display name + "Switch" + "Log out" when logged in, or "Link Spotify" button when not
 - Favicon: disco ball emoji (🪩)
 - Dark theme throughout
@@ -61,7 +61,7 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ### Content (top to bottom)
 1. Single-row table with: Score, Artist name, Genre tags, Signals (same format as artist list)
-2. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none.
+2. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, City, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none.
 3. Embedded Spotify artist player widget (iframe) + link to open in Spotify
 
 ---
@@ -70,10 +70,10 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ### Controls
 - **Search box**: filters events by title, venue, or artist name. Results update live after 300ms pause in typing. URL updates.
+- **City dropdown**: filters events by city (London / Berlin / All cities). Part of the main form — updates live via htmx. Default is London. URL param: `?city=london|berlin|all`.
 - **Date range**: two native date inputs (from/to) that filter events by date. Part of the main form — updates live via htmx like search.
 - **Quick date buttons**: "Tonight", "This weekend", "This week", "This month", "All dates" — clicking one sets the date range inputs and triggers the filter. Pure client-side JS, no separate server logic.
-- **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events
-- **Fetch Events button**: triggers background event fetch from all sources (RA, Skiddle, Dice). Redirects to progress page.
+- **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events. Preserves city filter.
 
 ### Table
 - Columns: Score, Date, Event, Venue, Matched Artists, Lineup, Price, Links
@@ -135,7 +135,14 @@ Genre data is per-user — each user has their own genre classifications via `Us
 
 ---
 
-## Event Fetch Progress (`/events/fetch/progress`)
+## Admin (`/admin`)
+
+### Content
+- **Fetch Events**: city selector (London / Berlin / Both) + Fetch button. Triggers background event fetch from sources that support the selected city. Redirects to progress page. Progress messages include city name.
+
+---
+
+## Event Fetch Progress (`/admin/fetch/progress`)
 
 - Full-page progress display during event fetching
 - Shows current step (which source is being fetched)
