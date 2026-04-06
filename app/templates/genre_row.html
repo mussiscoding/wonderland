@@ -1,4 +1,4 @@
-<tr id="genre-{{ genre.genre_name | replace(' ', '-') }}">
+<tr id="genre-{{ genre.id }}">
     <td><a href="/genre/{{ genre.genre_name | urlencode }}">{{ genre.genre_name }}</a></td>
     <td>{{ artist_count }}</td>
     <td>
@@ -14,17 +14,17 @@
     </td>
     <td>
         <div style="display: flex; gap: 4px;">
-            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.genre_name | replace(' ', '-') }}" hx-swap="outerHTML"
+            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
                   action="/genres/{{ genre.genre_name | urlencode }}/classify" method="post" style="display:inline;">
                 <input type="hidden" name="category" value="high">
                 <button type="submit" class="btn-tiny {% if genre.category == 'high' %}active-high{% endif %}">H</button>
             </form>
-            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.genre_name | replace(' ', '-') }}" hx-swap="outerHTML"
+            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
                   action="/genres/{{ genre.genre_name | urlencode }}/classify" method="post" style="display:inline;">
                 <input type="hidden" name="category" value="medium">
                 <button type="submit" class="btn-tiny {% if genre.category == 'medium' %}active-medium{% endif %}">M</button>
             </form>
-            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.genre_name | replace(' ', '-') }}" hx-swap="outerHTML"
+            <form hx-post="/genres/{{ genre.genre_name | urlencode }}/classify" hx-target="#genre-{{ genre.id }}" hx-swap="outerHTML"
                   action="/genres/{{ genre.genre_name | urlencode }}/classify" method="post" style="display:inline;">
                 <input type="hidden" name="category" value="low">
                 <button type="submit" class="btn-tiny {% if genre.category == 'low' %}active-low{% endif %}">L</button>

@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from app.auth import get_current_user, get_spotify_client
 from app.database import get_session, engine
-from app.models import Artist, ArtistGenre, UserArtist
+from app.models import Artist, ArtistGenre, Event, EventSource, Match, UserArtist
 from app.scoring import get_genre_map, SIGNAL_WEIGHTS, CATEGORY_MULTIPLIERS
 from app.spotify import import_all_artists, import_progress, _get_progress, backfill_lastfm
 from app.templating import templates
@@ -157,6 +157,25 @@ def show_artist(
         )
     ).first()
 
+    # Load events where this artist is matched
+    matches = session.exec(
+        select(Match).where(Match.artist_id == artist_id)
+    ).all()
+    event_ids = [m.event_id for m in matches]
+    events = []
+    sources_by_event: dict[int, list] = {}
+    if event_ids:
+        events = session.exec(
+            select(Event).where(Event.id.in_(event_ids))
+        ).all()
+        events.sort(key=lambda e: e.date)
+        event_sources = session.exec(
+            select(EventSource).where(EventSource.event_id.in_(event_ids))
+        ).all()
+        for src in event_sources:
+            sources_by_event.setdefault(src.event_id, []).append(src)
+    match_by_event = {m.event_id: m for m in matches}
+
     return templates.TemplateResponse(
         request,
         "artist_detail.html",
@@ -168,6 +187,9 @@ def show_artist(
             "current_user": user,
             "weights": SIGNAL_WEIGHTS,
             "category_multipliers": CATEGORY_MULTIPLIERS,
+            "events": events,
+            "match_by_event": match_by_event,
+            "sources_by_event": sources_by_event,
         },
     )
 

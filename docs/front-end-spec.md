@@ -59,10 +59,10 @@ Describes the desired user interactions and page responses across all pages. Imp
 ### Navigation
 - "← Back to artists" link at top
 
-### Content
-- Single-row table with: Score, Artist name, Genre tags, Signals (same format as artist list)
-- Below the table: embedded Spotify artist player widget (iframe)
-- Link to open artist in Spotify
+### Content (top to bottom)
+1. Single-row table with: Score, Artist name, Genre tags, Signals (same format as artist list)
+2. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none.
+3. Embedded Spotify artist player widget (iframe) + link to open in Spotify
 
 ---
 
@@ -81,8 +81,8 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Date header**: clickable, toggles between ascending (earliest first, ▲) and descending (▼)
 - **Score**: event score based on sum of matched artist scores weighted by match confidence. Dash (—) if no matches.
 - **Date**: formatted as "Mon 01 Jan"
-- **Matched Artists**: shown as green genre-tag pills with artist name + their score in small text. Tooltip shows match type and confidence.
-- **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow.
+- **Matched Artists**: shown as green genre-tag pills with artist name + their score in small text. Tooltip shows match type and confidence. Each pill links to `/artist/{id}` (no visual change — no underline or link colour).
+- **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow. Matched artist pills link to `/artist/{id}` (same styling as non-linked pills).
 - **Price**: cheapest price from sources, or dash if none
 - **Links**: buttons for each source (RA, Skiddle, Dice) linking to the event on that platform. Opens in new tab.
 

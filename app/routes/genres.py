@@ -201,10 +201,17 @@ def classify_genre(
     if ugc:
         ugc.category = category
         ugc.user_modified = True
-        session.add(ugc)
-        session.commit()
+    else:
+        ugc = UserGenreClassification(
+            user_id=user.id,
+            genre_name=genre_name,
+            category=category,
+            user_modified=True,
+        )
+    session.add(ugc)
+    session.commit()
 
-        rescore_user_artists(session, user.id)
+    rescore_user_artists(session, user.id)
 
     # If HTMX request, return just the updated row
     if request.headers.get("HX-Request"):

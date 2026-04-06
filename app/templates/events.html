@@ -87,13 +87,19 @@
             <td>{{ event.venue_name }}</td>
             <td>
                 {% for m in event_matches %}
+                <a href="/artist/{{ m.artist.id }}" style="text-decoration:none;">
                 <span class="genre-tag high" title="{{ m.match_type }} match ({{ m.confidence | int }}%) for '{{ m.matched_name }}'">
                     {{ m.artist.name }}
                     <span style="opacity:0.6;font-size:10px;">{{ m.effective_score | int }}</span>
                 </span>
+                </a>
                 {% endfor %}
             </td>
             <td>
+                {% set matched_artist_ids = {} %}
+                {% for m in event_matches %}
+                    {% set _ = matched_artist_ids.update({m.matched_name | lower: m.artist.id}) %}
+                {% endfor %}
                 {% set ns = namespace(sorted=[]) %}
                 {% for name in (event.lineup_parsed or []) %}
                     {% if name | lower in matched_names %}
@@ -107,7 +113,7 @@
                 {% endfor %}
                 {% for artist_name in ns.sorted[:6] %}
                 {% if artist_name | lower in matched_names %}
-                <span class="genre-tag high">{{ artist_name }}</span>
+                <a href="/artist/{{ matched_artist_ids[artist_name | lower] }}" style="text-decoration:none;"><span class="genre-tag high">{{ artist_name }}</span></a>
                 {% else %}
                 <span class="genre-tag">{{ artist_name }}</span>
                 {% endif %}
