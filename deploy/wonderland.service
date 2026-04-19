@@ -1,0 +1,15 @@
+[Unit]
+Description=Wonderland gig finder
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/srv/wonderland
+EnvironmentFile=/etc/wonderland.env
+ExecStart=/srv/wonderland/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

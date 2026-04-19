@@ -1,0 +1,9 @@
+[Unit]
+Description=Wonderland weekly event scraper
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/srv/wonderland
+EnvironmentFile=/etc/wonderland.env
+ExecStart=/srv/wonderland/.venv/bin/python -m app.fetch_cli --cities london,berlin
