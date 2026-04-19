@@ -125,3 +125,9 @@ class Match(SQLModel, table=True):
     confidence: float
     match_type: str  # "exact", "fuzzy", "alias"
     matched_name: str  # the string that actually matched
+
+
+class AccessRequest(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str
+    created_at: datetime = Field(default_factory=_utcnow)

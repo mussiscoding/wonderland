@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="empty-state">
+    {% if submitted %}
+        <h2>Request received</h2>
+        <p style="margin-top: 12px;">You'll get an email once your access is approved.</p>
+    {% else %}
+        <h2>Access required</h2>
+        <p style="margin-top: 12px; max-width: 400px; margin-left: auto; margin-right: auto;">
+            Wonderland is in early access. Enter your email below and
+            I'll add you to the Spotify allowlist.
+        </p>
+        <form method="post" action="/request-access" style="margin-top: 24px;">
+            <input type="email" name="email" placeholder="your@email.com" required
+                   style="width: 280px; margin-right: 8px;">
+            <button type="submit" class="btn">Request Access</button>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}

@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # Admin identity (comma-separated Spotify IDs)
     admin_spotify_ids: str = ""
 
+    # Gmail notifications (for access requests)
+    gmail_address: str = ""
+    gmail_app_password: str = ""
+
     # Optional API keys for scrapers / enrichment
     dice_api_key: str = ""
     skiddle_api_key: str = ""

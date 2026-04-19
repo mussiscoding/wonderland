@@ -1,13 +1,20 @@
+import logging
+import smtplib
 import time
+from email.message import EmailMessage
 
 import spotipy
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from app.auth import encrypt_token_info, get_login_oauth
+from app.config import settings
 from app.database import get_session
-from app.models import User
+from app.models import AccessRequest, User
+from app.templating import templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -40,10 +47,11 @@ def callback(
     request: Request,
     code: str = "",
     state: str = "",
+    error: str = "",
     session: Session = Depends(get_session),
 ):
-    if not code:
-        return RedirectResponse("/")
+    if error or not code:
+        return RedirectResponse("/request-access")
 
     # Retrieve the OAuth object from the login step
     pending = _pending_oauth.pop(state, None)
@@ -91,3 +99,48 @@ def callback(
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/artists")
+
+
+@router.get("/request-access", response_class=HTMLResponse)
+def request_access_page(request: Request):
+    return templates.TemplateResponse(
+        request, "request_access.html", {"submitted": False}
+    )
+
+
+@router.post("/request-access", response_class=HTMLResponse)
+def request_access_submit(
+    request: Request,
+    email: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    access_request = AccessRequest(email=email)
+    session.add(access_request)
+    session.commit()
+
+    _send_access_request_email(email)
+
+    return templates.TemplateResponse(
+        request, "request_access.html", {"submitted": True}
+    )
+
+
+def _send_access_request_email(requester_email: str):
+    addr = settings.gmail_address
+    pw = settings.gmail_app_password
+    if not addr or not pw:
+        logger.warning("Gmail not configured — skipping access request email")
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = "Wonderland access request"
+    msg["From"] = addr
+    msg["To"] = addr
+    msg.set_content(f"{requester_email} wants access to Wonderland.")
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(addr, pw)
+            smtp.send_message(msg)
+    except Exception:
+        logger.exception("Failed to send access request email")
