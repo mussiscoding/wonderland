@@ -66,7 +66,11 @@ def callback(
 
     # Get the user's Spotify profile
     sp = spotipy.Spotify(auth=token_info["access_token"])
-    profile = sp.current_user()
+    try:
+        profile = sp.current_user()
+    except spotipy.SpotifyException:
+        logger.warning("Spotify rejected user — not registered for this app")
+        return RedirectResponse("/request-access")
     spotify_id = profile["id"]
     display_name = profile.get("display_name") or spotify_id
 
