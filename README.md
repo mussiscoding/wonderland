@@ -11,6 +11,7 @@ To actually use the project you will need to be added to the related spotify dev
 ### What this project isn't
 
 Ever really planned for public release - we scrape a bunch of ticket sites that definitely wouldn't like it if it became super popular
+
 A beautifully crafted piece of code - this is a tool that does what I want it to, there is beauty in functionality (probably)
 
 ### Project
