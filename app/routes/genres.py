@@ -2,14 +2,14 @@ import logging
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlmodel import Session, select
 
 from app.auth import get_current_user
 from app.config import settings
 from app.database import get_session
 from app.models import ArtistGenre, GenreClassification, Artist, UserArtist, UserGenreClassification
-from app.scoring import get_genre_map, rescore_user_artists, seed_user_genres
+from app.scoring import get_genre_map, rescore_user_artists
 from app.templating import templates
 
 logger = logging.getLogger(__name__)
@@ -277,7 +277,14 @@ def reset_genres(
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    seed_user_genres(session, user.id, replace=True)
+    # Clear all classifications to unclassified
+    session.execute(
+        update(UserGenreClassification)
+        .where(UserGenreClassification.user_id == user.id)
+        .values(category="unclassified", user_modified=False)
+    )
+    session.commit()
+
     rescore_user_artists(session, user.id)
 
     return RedirectResponse("/genres", status_code=303)
@@ -288,6 +295,7 @@ def admin_classify_genre(
     request: Request,
     genre_name: str,
     category: str = Form(),
+    profile_name: str = Form("dance"),
     session: Session = Depends(get_session),
 ):
     user = get_current_user(request, session)
@@ -297,32 +305,22 @@ def admin_classify_genre(
     if category not in VALID_CATEGORIES:
         return RedirectResponse("/genres", status_code=303)
 
-    # Update global template
+    # Update the template for the specified profile (no propagation to existing users)
     gc = session.exec(
-        select(GenreClassification).where(GenreClassification.name == genre_name)
+        select(GenreClassification).where(
+            GenreClassification.name == genre_name,
+            GenreClassification.profile_name == profile_name,
+        )
     ).first()
     if gc:
         gc.category = category
-        session.add(gc)
-        session.commit()
-
-    # Propagate to users who haven't manually overridden this genre
-    user_rows = session.exec(
-        select(UserGenreClassification).where(
-            UserGenreClassification.genre_name == genre_name,
-            UserGenreClassification.user_modified == False,  # noqa: E712
+    else:
+        gc = GenreClassification(
+            name=genre_name,
+            profile_name=profile_name,
+            category=category,
         )
-    ).all()
-
-    affected_user_ids = set()
-    for ugc in user_rows:
-        ugc.category = category
-        session.add(ugc)
-        affected_user_ids.add(ugc.user_id)
+    session.add(gc)
     session.commit()
-
-    # Rescore affected users
-    for uid in affected_user_ids:
-        rescore_user_artists(session, uid)
 
     return RedirectResponse("/genres", status_code=303)

@@ -52,6 +52,10 @@ def run_migration():
         # Multi-city: backfill venue_location and recompute dedupe keys
         _migrate_dedupe_keys_for_city(session)
 
+        # Genre profile templates (Phase 2)
+        _add_profile_name_to_genre_classification(session)
+        _seed_profile_templates(session)
+
     # Rename old eventbrite venues file
     _rename_eventbrite_venue_file()
 
@@ -287,3 +291,99 @@ def _rename_eventbrite_venue_file():
     if old_path.exists() and not new_path.exists():
         shutil.move(str(old_path), str(new_path))
         logger.info("  Renamed eventbrite_venues.json → eventbrite_venues_london.json")
+
+
+def _add_profile_name_to_genre_classification(session: Session):
+    """Add profile_name column and rebuild table to change unique constraint."""
+    try:
+        session.exec(text("SELECT profile_name FROM genreclassification LIMIT 1")).all()
+        return  # Already migrated
+    except Exception:
+        pass
+
+    logger.info("Rebuilding GenreClassification table with profile_name column...")
+
+    # SQLite can't alter unique constraints, so we rebuild the table
+    session.exec(text("""
+        CREATE TABLE genreclassification_new (
+            id INTEGER PRIMARY KEY,
+            profile_name VARCHAR DEFAULT 'dance',
+            name VARCHAR NOT NULL,
+            category VARCHAR DEFAULT 'unclassified',
+            UNIQUE (profile_name, name)
+        )
+    """))
+    session.exec(text("""
+        INSERT INTO genreclassification_new (id, profile_name, name, category)
+        SELECT id, 'dance', name, category FROM genreclassification
+    """))
+    session.exec(text("DROP TABLE genreclassification"))
+    session.exec(text("ALTER TABLE genreclassification_new RENAME TO genreclassification"))
+    session.exec(text("CREATE INDEX ix_genreclassification_profile_name ON genreclassification (profile_name)"))
+    session.exec(text("CREATE INDEX ix_genreclassification_name ON genreclassification (name)"))
+    session.commit()
+    logger.info("  GenreClassification table rebuilt with profile_name")
+
+
+# Seed data for genre profile templates
+_PROFILE_SEEDS = {
+    "jazz": {
+        "high": [
+            "jazz", "bebop", "hard bop", "cool jazz", "soul jazz", "free jazz",
+            "jazz fusion", "smooth jazz", "vocal jazz", "latin jazz", "acid jazz",
+            "jazz funk", "contemporary jazz", "swing", "big band",
+        ],
+        "medium": ["soul", "r&b", "funk", "neo-soul", "blues", "bossa nova", "afrobeat"],
+    },
+    "rock": {
+        "high": [
+            "rock", "classic rock", "alternative rock", "indie rock", "punk rock",
+            "hard rock", "progressive rock", "psychedelic rock", "garage rock",
+            "post-punk", "grunge", "shoegaze", "punk", "new wave",
+        ],
+        "medium": ["metal", "indie", "folk rock", "blues rock", "emo", "post-rock"],
+    },
+    "pop": {
+        "high": [
+            "pop", "indie pop", "synth-pop", "electropop", "art pop", "dream pop",
+            "k-pop", "dance pop", "teen pop", "chamber pop", "baroque pop",
+        ],
+        "medium": ["r&b", "singer-songwriter", "folk pop", "new wave", "synthwave"],
+    },
+    "country": {
+        "high": [
+            "country", "country rock", "outlaw country", "alt-country", "bluegrass",
+            "country pop", "americana", "country blues", "honky tonk", "country folk",
+        ],
+        "medium": ["folk", "singer-songwriter", "southern rock", "roots rock"],
+    },
+}
+
+
+VALID_PROFILES = ("dance", *_PROFILE_SEEDS.keys(), "none")
+
+
+def _seed_profile_templates(session: Session):
+    """Seed GenreClassification rows for non-dance profiles."""
+    from app.models import GenreClassification
+
+    # Check if non-dance profiles have already been seeded
+    existing = session.exec(
+        select(GenreClassification.id).where(GenreClassification.profile_name == "jazz").limit(1)
+    ).first()
+    if existing:
+        return
+
+    logger.info("Seeding genre profile templates...")
+    count = 0
+    for profile_name, categories in _PROFILE_SEEDS.items():
+        for category, genres in categories.items():
+            for genre_name in genres:
+                session.add(GenreClassification(
+                    profile_name=profile_name,
+                    name=genre_name,
+                    category=category,
+                ))
+                count += 1
+    session.commit()
+    logger.info(f"  Seeded {count} genre classifications across {len(_PROFILE_SEEDS)} profiles")

@@ -34,6 +34,15 @@ SIGNAL_WEIGHTS = {
 }
 
 
+def user_has_genres(session: Session, user_id: int) -> bool:
+    """Check if a user has any genre classifications yet."""
+    return session.exec(
+        select(UserGenreClassification.id).where(
+            UserGenreClassification.user_id == user_id
+        ).limit(1)
+    ).first() is not None
+
+
 def get_genre_map(session: Session, user_id: int | None = None) -> dict[str, str]:
     """Load genre -> category mapping.
 
@@ -48,7 +57,11 @@ def get_genre_map(session: Session, user_id: int | None = None) -> dict[str, str
         ).all()
         return {r.genre_name: r.category for r in rows}
 
-    classifications = session.exec(select(GenreClassification)).all()
+    classifications = session.exec(
+        select(GenreClassification).where(
+            GenreClassification.profile_name == "dance"
+        )
+    ).all()
     return {gc.name: gc.category for gc in classifications}
 
 
@@ -103,12 +116,11 @@ def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[
     return min(round(score, 1), 100.0)
 
 
-def seed_user_genres(session: Session, user_id: int, replace: bool = False) -> None:
-    """Copy genres for a user's artists from their profile template.
+def seed_user_genres(session: Session, user_id: int, profile_name: str = "dance") -> None:
+    """Seed UserGenreClassification for a user's artists from a profile template.
 
-    replace=False (default): insert only genres the user doesn't have yet.
-    replace=True: delete all user's genre rows and re-seed from template.
-      Genres not in the template get set to unclassified.
+    Only inserts genres the user doesn't have yet. For "none", all new genres
+    are seeded as unclassified.
     """
     # Get the user's artist IDs
     user_artist_ids = session.exec(
@@ -126,25 +138,29 @@ def seed_user_genres(session: Session, user_id: int, replace: bool = False) -> N
     if not artist_genres:
         return
 
-    # Load the global template
-    template = {
-        gc.name: gc.category
-        for gc in session.exec(select(GenreClassification)).all()
-    }
+    # Load template for the chosen profile
+    if profile_name == "none":
+        template = {}
+    else:
+        template = {
+            gc.name: gc.category
+            for gc in session.exec(
+                select(GenreClassification).where(
+                    GenreClassification.profile_name == profile_name
+                )
+            ).all()
+        }
 
-    if replace:
-        # Delete all existing user genre rows
-        existing = session.exec(
-            select(UserGenreClassification).where(
+    # Only insert genres the user doesn't have yet
+    existing_names = set(
+        session.exec(
+            select(UserGenreClassification.genre_name).where(
                 UserGenreClassification.user_id == user_id
             )
         ).all()
-        for row in existing:
-            session.delete(row)
-        session.flush()
-
-        # Re-seed all genres from template
-        for genre_name in artist_genres:
+    )
+    for genre_name in artist_genres:
+        if genre_name not in existing_names:
             category = template.get(genre_name, "unclassified")
             session.add(
                 UserGenreClassification(
@@ -154,26 +170,6 @@ def seed_user_genres(session: Session, user_id: int, replace: bool = False) -> N
                     user_modified=False,
                 )
             )
-    else:
-        # Only insert genres the user doesn't have yet
-        existing_names = set(
-            session.exec(
-                select(UserGenreClassification.genre_name).where(
-                    UserGenreClassification.user_id == user_id
-                )
-            ).all()
-        )
-        for genre_name in artist_genres:
-            if genre_name not in existing_names:
-                category = template.get(genre_name, "unclassified")
-                session.add(
-                    UserGenreClassification(
-                        user_id=user_id,
-                        genre_name=genre_name,
-                        category=category,
-                        user_modified=False,
-                    )
-                )
 
     session.commit()
 

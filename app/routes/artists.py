@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.auth import get_current_user, get_spotify_client
 from app.database import get_session, engine
 from app.models import Artist, ArtistGenre, Event, EventSource, Match, UserArtist
-from app.scoring import get_genre_map, SIGNAL_WEIGHTS, CATEGORY_MULTIPLIERS
+from app.scoring import get_genre_map, user_has_genres, SIGNAL_WEIGHTS, CATEGORY_MULTIPLIERS
 from app.spotify import import_all_artists, import_progress, _get_progress, backfill_lastfm
 from app.templating import templates
 
@@ -62,13 +62,20 @@ def run_import(request: Request, session: Session = Depends(get_session)):
     return RedirectResponse("/import/progress", status_code=303)
 
 
+def _post_import_redirect(session: Session, user) -> str:
+    """Where to send the user after import: /choose-profile or /artists."""
+    if not user:
+        return "/artists"
+    return "/artists" if user_has_genres(session, user.id) else "/choose-profile"
+
+
 @router.get("/import/progress", response_class=HTMLResponse)
 def show_progress(request: Request, session: Session = Depends(get_session)):
     user = get_current_user(request, session)
     progress = _user_progress(user)
 
     if progress["done"] and not progress["running"]:
-        return RedirectResponse("/artists", status_code=303)
+        return RedirectResponse(_post_import_redirect(session, user), status_code=303)
 
     return templates.TemplateResponse(
         request,
@@ -81,11 +88,10 @@ def show_progress(request: Request, session: Session = Depends(get_session)):
 def progress_bar(request: Request, session: Session = Depends(get_session)):
     user = get_current_user(request, session)
     progress = _user_progress(user)
-    return templates.TemplateResponse(
-        request,
-        "import_progress_bar.html",
-        {"progress": progress, "current_user": user},
-    )
+    ctx = {"progress": progress, "current_user": user}
+    if progress["done"]:
+        ctx["redirect_url"] = _post_import_redirect(session, user)
+    return templates.TemplateResponse(request, "import_progress_bar.html", ctx)
 
 
 @router.get("/import/progress-inline", response_class=HTMLResponse)

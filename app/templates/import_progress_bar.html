@@ -1,5 +1,5 @@
 {% if progress.done %}
-<script>window.location.href = "/artists";</script>
+<script>window.location.href = "{{ redirect_url | default('/artists') }}";</script>
 {% else %}
 <p class="progress-step">{{ progress.step }}</p>
 {% if progress.total > 0 %}

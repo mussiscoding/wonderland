@@ -2,13 +2,15 @@ import logging
 import time
 
 import spotipy
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
-from app.auth import encrypt_token_info, get_login_oauth
+from app.auth import encrypt_token_info, get_current_user, get_login_oauth
 from app.database import get_session
 from app.models import User
+from app.migration import VALID_PROFILES
+from app.scoring import rescore_user_artists, seed_user_genres, user_has_genres
 from app.templating import templates
 
 logger = logging.getLogger(__name__)
@@ -107,3 +109,27 @@ def request_access_page(request: Request):
     return templates.TemplateResponse(request, "request_access.html")
 
 
+@router.get("/choose-profile", response_class=HTMLResponse)
+def choose_profile_page(request: Request, session: Session = Depends(get_session)):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if user_has_genres(session, user.id):
+        return RedirectResponse("/artists", status_code=303)
+    return templates.TemplateResponse(request, "choose_profile.html")
+
+
+@router.post("/choose-profile")
+def choose_profile_submit(
+    request: Request,
+    profile_name: str = Form(),
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if profile_name not in VALID_PROFILES:
+        profile_name = "none"
+    seed_user_genres(session, user.id, profile_name=profile_name)
+    rescore_user_artists(session, user.id)
+    return RedirectResponse("/artists", status_code=303)

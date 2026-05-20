@@ -102,7 +102,7 @@ Genre data is per-user — each user has their own genre classifications via `Us
 ### Controls
 - **Search box**: filters genres by name. Results update live after 300ms pause in typing. URL updates.
 - **Category dropdown**: filters by classification (All, Unclassified, High, Medium, Low). Triggers filter on change.
-- **Reset to defaults button**: resets all genre classifications to the profile template defaults. Requires confirmation dialog. Positioned right-aligned in controls bar.
+- **Clear all classifications button**: sets all genre classifications to unclassified. Requires confirmation dialog. Positioned right-aligned in controls bar.
 
 ### Table
 - Columns: Genre, Artists, Category, Actions
@@ -152,10 +152,24 @@ Genre data is per-user — each user has their own genre classifications via `Us
 
 ---
 
+## Choose Profile (`/choose-profile`)
+
+- Shown once after a new user's first import completes (before they have any `UserGenreClassification` rows)
+- Nav bar is hidden during onboarding
+- Heading: "What music are you into?"
+- Subtitle explains this is just a starting point and genres can be changed later
+- Radio list: Dance & Electronic (default), Jazz, Rock, Pop, Country, "No preference — I'll classify genres myself"
+- Single "Continue" button submits the form
+- POST seeds `UserGenreClassification` from the chosen template, rescores artists, then redirects to `/artists`
+- Returning users (who already have genre classifications) are redirected straight to `/artists` if they visit this page
+
+---
+
 ## Artist Import Progress (`/import/progress`)
 
 - Full-page progress display during Spotify import
 - Shows current step (which data source is being pulled)
 - Progress bar with count
 - Auto-polls every 1 second for updates
-- Auto-redirects to artists page when complete
+- New users (no genre classifications): auto-redirects to `/choose-profile` when complete
+- Returning users: auto-redirects to `/artists` when complete

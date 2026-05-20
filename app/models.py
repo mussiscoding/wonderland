@@ -13,7 +13,6 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     spotify_id: str = Field(unique=True, index=True)
     display_name: str = Field(default="")
-    genre_profile: str = Field(default="dance")
     encrypted_token_info: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(
@@ -69,8 +68,13 @@ class ArtistGenre(SQLModel, table=True):
 
 
 class GenreClassification(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("profile_name", "name", name="uq_profile_genre"),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(unique=True, index=True)
+    profile_name: str = Field(default="dance", index=True)
+    name: str = Field(index=True)
     category: str = Field(default="unclassified")  # "high", "medium", "low", "unclassified"
 
 

@@ -130,8 +130,8 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
     # Ensure all genres exist in the classification table
     _sync_genre_classifications(session, artist_data)
 
-    # Seed new genres into importing user's UserGenreClassification
-    seed_user_genres(session, user_id)
+    # Seed any new genres as unclassified (template choice happens at /choose-profile)
+    seed_user_genres(session, user_id, profile_name="none")
 
     # Final rescore using DB genres + existing classifications
     progress["step"] = "Rescoring with genres..."
@@ -197,21 +197,25 @@ def _upsert_user_artists(
 
 
 def _sync_genre_classifications(session: Session, artist_data: dict):
-    """Add any new genres to the classification table as 'unclassified'."""
+    """Add any new genres to the dance classification template as 'unclassified'."""
     all_genres: set[str] = set()
     for data in artist_data.values():
         for g in data.get("genres", []):
             all_genres.add(g.lower())
 
     existing = {
-        gc.name for gc in session.exec(select(GenreClassification)).all()
+        gc.name for gc in session.exec(
+            select(GenreClassification).where(
+                GenreClassification.profile_name == "dance"
+            )
+        ).all()
     }
 
     new_genres = all_genres - existing
     if new_genres:
         logger.info(f"  Adding {len(new_genres)} new genres to classification table")
         for genre_name in new_genres:
-            session.add(GenreClassification(name=genre_name))
+            session.add(GenreClassification(name=genre_name, profile_name="dance"))
         session.commit()
 
 
@@ -404,7 +408,7 @@ def backfill_lastfm(session: Session, user_id: int):
 
     # Sync any new genres into classification table and rescore
     _sync_genre_classifications(session, {sid: d for sid, d in artist_data.items() if d["genres"]})
-    seed_user_genres(session, user_id)
+    seed_user_genres(session, user_id, profile_name="none")
     genre_map = get_genre_map(session, user_id)
 
     for sid, data in artist_data.items():

@@ -146,6 +146,7 @@
     <div class="container">
         <h1><span>wonderland</span></h1>
         <p class="subtitle">find gigs you'll actually go to</p>
+        {% block nav %}
         <nav>
             <a href="/artists">Artists</a>
             <a href="/events">Events</a>
@@ -161,6 +162,7 @@
                 {% endif %}
             </div>
         </nav>
+        {% endblock %}
         {% block content %}{% endblock %}
     </div>
 {% block scripts %}{% endblock %}

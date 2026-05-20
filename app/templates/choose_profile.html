@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block nav %}{% endblock %}
+{% block content %}
+<div class="empty-state">
+    <h2>What music are you into?</h2>
+    <p style="margin-top: 12px; max-width: 480px; margin-left: auto; margin-right: auto;">
+        Pick a starting point — this just sets initial genre priorities.
+        You can change any genre's rating later on the Genres page.
+    </p>
+    <form method="post" action="/choose-profile" style="margin-top: 24px; text-align: left; max-width: 320px; margin-left: auto; margin-right: auto;">
+        <label style="display: block; padding: 8px 0; cursor: pointer;">
+            <input type="radio" name="profile_name" value="dance" checked> Dance &amp; Electronic
+        </label>
+        <label style="display: block; padding: 8px 0; cursor: pointer;">
+            <input type="radio" name="profile_name" value="jazz"> Jazz
+        </label>
+        <label style="display: block; padding: 8px 0; cursor: pointer;">
+            <input type="radio" name="profile_name" value="rock"> Rock
+        </label>
+        <label style="display: block; padding: 8px 0; cursor: pointer;">
+            <input type="radio" name="profile_name" value="pop"> Pop
+        </label>
+        <label style="display: block; padding: 8px 0; cursor: pointer;">
+            <input type="radio" name="profile_name" value="country"> Country
+        </label>
+        <label style="display: block; padding: 8px 0; cursor: pointer;">
+            <input type="radio" name="profile_name" value="none"> No preference — I'll classify genres myself
+        </label>
+        <button type="submit" class="btn" style="margin-top: 16px; width: 100%;">Continue</button>
+    </form>
+</div>
+{% endblock %}
