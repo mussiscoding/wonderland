@@ -16,7 +16,10 @@ A beautifully crafted piece of code - this is a tool that does what I want it to
 
 ### Project
 
-Wonderland is a project to help me find events to go dancing at. It takes a users Spotify account and ranks all their artists based on listens, listen recency how they listen to them, playlists added, etc. then finds the artists genre(s) and ranks the artists based on these two things. This allows them to prioritise artists based on genre and not just listens.
+Wonderland is a project to help people find events to go to. I found that using an Spotify I have to go through artist by artist, and using events sites meant I had to search though a lot of events with artists I didn't know. Wonderland lets me marry the two up.
+
+
+It takes a users Spotify account and ranks all their artists based on listens, listen recency how they listen to them, playlists added, etc. then finds the artists genre(s) and ranks the artists based on these two things. This allows them to prioritise artists based on genre and not just listens.
 We then find all events from RA/Dice/EventBrite/Ticketmaster/Skiddle in London and match those to the artists.
 
 <img width="1036" height="485" alt="image" src="https://github.com/user-attachments/assets/ac304980-18f9-41af-8be3-6e0dae40cdc8" />
