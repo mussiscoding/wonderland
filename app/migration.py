@@ -45,16 +45,17 @@ def run_migration():
         # Add genre_profile column to User if missing
         _add_genre_profile_column(session)
 
+        # Genre profile templates — must run before _migrate_genre_categories
+        # because the ORM model now includes profile_name column
+        _add_profile_name_to_genre_classification(session)
+        _seed_profile_templates(session)
+
         # Migrate genre categories and seed per-user genre classifications
         _migrate_genre_categories(session)
         _seed_user_genre_classifications(session)
 
         # Multi-city: backfill venue_location and recompute dedupe keys
         _migrate_dedupe_keys_for_city(session)
-
-        # Genre profile templates (Phase 2)
-        _add_profile_name_to_genre_classification(session)
-        _seed_profile_templates(session)
 
     # Rename old eventbrite venues file
     _rename_eventbrite_venue_file()
