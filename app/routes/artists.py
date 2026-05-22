@@ -1,7 +1,7 @@
 import logging
 import threading
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
@@ -315,3 +315,44 @@ def list_artists(
             "category_multipliers": CATEGORY_MULTIPLIERS,
         },
     )
+
+
+@router.post("/artist/{artist_id}/score")
+def set_artist_score(
+    request: Request,
+    artist_id: int,
+    manual_score: str = Form(""),
+    excluded: bool = Form(False),
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    user_artist = session.exec(
+        select(UserArtist).where(
+            UserArtist.user_id == user.id,
+            UserArtist.artist_id == artist_id,
+        )
+    ).first()
+
+    if not user_artist:
+        return RedirectResponse(f"/artist/{artist_id}", status_code=303)
+
+    # Parse manual score: empty string clears it
+    if manual_score.strip() == "":
+        user_artist.manual_score = None
+    else:
+        try:
+            score = float(manual_score)
+            user_artist.manual_score = max(0.0, min(100.0, score))
+        except ValueError:
+            return RedirectResponse(f"/artist/{artist_id}", status_code=303)
+
+    user_artist.excluded = excluded
+    session.add(user_artist)
+    session.commit()
+
+    # Redirect back to wherever the request came from
+    referer = request.headers.get("referer", f"/artist/{artist_id}")
+    return RedirectResponse(referer, status_code=303)
