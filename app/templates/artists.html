@@ -63,7 +63,6 @@
                 </a>
             </th>
             <th>Genres</th>
-            <th>Signals</th>
         </tr>
     </thead>
     <tbody>
@@ -73,7 +72,7 @@
         {# Show divider between "likely relevant" and "probably not" at score 30 #}
         {% if sort == "score" and not divider_shown[0] and artist.effective_score < 30 %}
         <tr class="divider">
-            <td colspan="4">below this line: probably not going to dance to these</td>
+            <td colspan="3">below this line: probably not going to dance to these</td>
         </tr>
         {% set _ = divider_shown.__setitem__(0, true) %}
         {% endif %}
@@ -94,11 +93,6 @@
             <td>
                 {% set artist_genres = artist.genres %}
                 {% include "_genre_tags.html" %}
-            </td>
-            <td>
-                {% set signals = artist.source_signals %}
-                {% set artist_genres = artist.genres %}
-                {% include "_signal_breakdown.html" %}
             </td>
         </tr>
         {% endfor %}

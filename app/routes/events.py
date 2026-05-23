@@ -75,7 +75,7 @@ def list_events(
             "matched_name": m.matched_name,
         })
 
-    # Compute event scores using user-specific scores
+    # Compute event scores for sorting and filtering
     event_scores: dict[int, float] = {}
     for event in events:
         event_matches = matches_by_event.get(event.id, [])
@@ -123,17 +123,16 @@ def list_events(
         events.sort(key=lambda e: event_scores.get(e.id, 0), reverse=True)
     elif sort == "score_asc":
         events.sort(key=lambda e: event_scores.get(e.id, 0))
-    elif sort == "date":
-        events.sort(key=lambda e: e.date)
     elif sort == "date_desc":
         events.sort(key=lambda e: e.date, reverse=True)
+    else:
+        events.sort(key=lambda e: e.date)
 
     return templates.TemplateResponse(
         request,
         "events.html",
         {
             "events": events,
-            "event_scores": event_scores,
             "matches_by_event": matches_by_event,
             "sources_by_event": sources_by_event,
             "q": q,

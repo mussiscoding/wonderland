@@ -19,18 +19,51 @@
         h1 span { color: #1db954; }
         .subtitle { color: #888; margin-bottom: 24px; }
 
-        nav { display: flex; gap: 16px; margin-bottom: 24px; align-items: center; }
-        nav a {
+        /* Desktop nav */
+        nav.desktop-nav { display: flex; gap: 16px; margin-bottom: 24px; align-items: center; }
+        nav.desktop-nav a {
             color: #1db954;
             text-decoration: none;
             padding: 6px 12px;
             border-radius: 4px;
             transition: background 0.2s;
         }
-        nav a:hover { background: #1a1a1a; }
+        nav.desktop-nav a:hover { background: #1a1a1a; }
         .user-area { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 13px; }
         .user-area .user-name { color: #888; }
         .user-area a { color: #666; font-size: 12px; padding: 4px 8px; }
+
+        /* Mobile hamburger */
+        .hamburger-btn {
+            display: none;
+            position: fixed; top: 12px; left: 12px; z-index: 200;
+            background: #1a1a1a; border: 1px solid #333; color: #e0e0e0;
+            width: 40px; height: 40px; border-radius: 6px; cursor: pointer;
+            font-size: 20px; line-height: 1;
+            align-items: center; justify-content: center;
+        }
+        .nav-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 150;
+        }
+        .nav-overlay.open { display: block; }
+        .nav-panel {
+            position: fixed; top: 0; left: 0; width: 70%; max-width: 280px; height: 100%;
+            background: #111; border-right: 1px solid #333; z-index: 160;
+            padding: 60px 20px 20px; display: flex; flex-direction: column; gap: 0;
+        }
+        .nav-panel a {
+            color: #1db954; text-decoration: none; padding: 12px 0;
+            font-size: 18px; border-bottom: 1px solid #1a1a1a;
+        }
+        .nav-panel a:hover { color: #1ed760; }
+        .nav-panel .nav-user-area {
+            margin-top: auto; padding-top: 16px; border-top: 1px solid #333;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .nav-panel .nav-user-area .user-name { color: #888; font-size: 14px; }
+        .nav-panel .nav-user-area a { font-size: 14px; padding: 8px 0; border-bottom: none; color: #666; }
 
         .controls {
             display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
@@ -64,7 +97,7 @@
 
         .btn-tiny {
             background: #1a1a1a; border: 1px solid #333; color: #888;
-            padding: 2px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;
+            padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
             font-weight: 600;
         }
         .btn-tiny:hover { border-color: #1db954; color: #1db954; }
@@ -138,16 +171,106 @@
         }
         a.sortable:hover { color: #1db954; }
 
+        .toggle-wrap {
+            display: inline-flex; background: #1a1a1a; border: 1px solid #333;
+            border-radius: 4px; overflow: hidden;
+        }
+        .toggle-opt {
+            padding: 4px 10px; font-size: 12px; font-weight: 600;
+            color: #666; text-decoration: none; cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .toggle-opt.active {
+            background: #1db954; color: #000;
+        }
+        .toggle-opt:not(.active):hover { color: #e0e0e0; }
+
+        .source-icon {
+            display: block; background: #1a1a1a; border: 1px solid #333;
+            color: #888; padding: 2px 5px; border-radius: 3px; font-size: 10px;
+            font-weight: 700; text-decoration: none; margin: 1px auto;
+            line-height: 1.2; text-align: center;
+        }
+        .source-icon:hover { border-color: #1db954; color: #1db954; }
+
         .htmx-indicator { opacity: 0; transition: opacity 0.2s; }
         .htmx-request .htmx-indicator { opacity: 1; }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            .container { padding: 12px; padding-top: 56px; }
+            h1 { font-size: 1.4em; }
+            .subtitle { font-size: 13px; margin-bottom: 16px; }
+
+            .hamburger-btn { display: flex; }
+            nav.desktop-nav { display: none; }
+
+            .controls { gap: 8px; }
+            input[type="text"] { width: 100%; }
+            input[type="date"] { flex: 1; min-width: 0; }
+            select { width: 100%; }
+
+            th { padding: 8px 6px; font-size: 11px; }
+            td { padding: 8px 6px; font-size: 13px; }
+
+            .score { font-size: 14px; min-width: 30px; }
+
+            .hide-mobile { display: none !important; }
+            .desktop-only { display: none !important; }
+            .mobile-only { display: block !important; }
+            .desktop-filter-row { display: none !important; }
+            .mobile-filter-row { display: flex !important; }
+            .date-picker-dropdown {
+                background: #111; border: 1px solid #333; border-radius: 6px;
+                padding: 12px; margin-top: -12px; margin-bottom: 12px;
+            }
+        }
+
+        .mobile-filter-row {
+            display: none; gap: 8px; align-items: center; width: 100%; flex-wrap: wrap;
+        }
+        .desktop-filter-row {
+            display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+        }
+
+        .mobile-only { display: none; }
+        .date-picker-hidden { display: none !important; }
+
+        /* Desktop: hide hamburger + mobile elements */
+        @media (min-width: 601px) {
+            .hamburger-btn { display: none !important; }
+            .nav-overlay { display: none !important; }
+            .mobile-filter-row { display: none !important; }
+            .mobile-only { display: none !important; }
+            .date-picker-dropdown { display: none !important; }
+            .date-toggle-btn { display: none !important; }
+        }
     </style>
 </head>
 <body>
+    <button class="hamburger-btn" onclick="document.getElementById('nav-overlay').classList.add('open')">&#9776;</button>
+    <div id="nav-overlay" class="nav-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+        <div class="nav-panel">
+            <a href="/artists" onclick="document.getElementById('nav-overlay').classList.remove('open')">Artists</a>
+            <a href="/events" onclick="document.getElementById('nav-overlay').classList.remove('open')">Events</a>
+            <a href="/genres" onclick="document.getElementById('nav-overlay').classList.remove('open')">Genres</a>
+            <a href="/admin" onclick="document.getElementById('nav-overlay').classList.remove('open')">Admin</a>
+            <div class="nav-user-area">
+                {% if current_user is defined and current_user %}
+                <span class="user-name">{{ current_user.display_name }}</span>
+                <a href="/login?switch=1">Switch account</a>
+                <a href="/logout">Log out</a>
+                {% else %}
+                <a href="/login" style="color:#1db954;">Link Spotify</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
     <div class="container">
         <h1><span>wonderland</span></h1>
         <p class="subtitle">find gigs you'll actually go to</p>
         {% block nav %}
-        <nav>
+        <nav class="desktop-nav">
             <a href="/artists">Artists</a>
             <a href="/events">Events</a>
             <a href="/genres">Genres</a>

@@ -6,59 +6,101 @@
           hx-push-url="true"
           method="get" action="/events" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        {% if show_all %}
+        <input type="hidden" name="show_all" value="1">
+        {% endif %}
+
         <select name="city" style="width:auto;">
             {% for key, cfg in city_options.items() %}
             <option value="{{ key }}" {% if city == key %}selected{% endif %}>{{ cfg.label }}</option>
             {% endfor %}
             <option value="all" {% if city == 'all' %}selected{% endif %}>All cities</option>
         </select>
-        <input type="date" name="date_from" value="{{ date_from }}" style="width:140px;" title="From date">
-        <span style="color:#666;">–</span>
-        <input type="date" name="date_to" value="{{ date_to }}" style="width:140px;" title="To date">
-        <input type="hidden" name="sort" value="{{ sort }}">
-        {% if show_all %}
-        <input type="hidden" name="show_all" value="1">
-        {% endif %}
+
+        {# Mobile: date button that opens dropdown #}
+        <button type="button" class="btn-tiny date-toggle-btn" onclick="toggleDatePicker()" style="white-space:nowrap;">
+            {% if date_from and date_to %}
+            {{ date_from[8:] }}/{{ date_from[5:7] }} – {{ date_to[8:] }}/{{ date_to[5:7] }}
+            {% elif date_from %}
+            From {{ date_from[8:] }}/{{ date_from[5:7] }}
+            {% elif date_to %}
+            Until {{ date_to[8:] }}/{{ date_to[5:7] }}
+            {% else %}
+            Dates
+            {% endif %}
+        </button>
+
+        {# Canonical hidden date inputs (always in form) #}
+        <input type="hidden" name="date_from" id="date-from-hidden" value="{{ date_from }}">
+        <input type="hidden" name="date_to" id="date-to-hidden" value="{{ date_to }}">
+
+        {# Desktop: date inputs inline (no name — synced via JS) #}
+        <span class="desktop-only">
+            <input type="date" class="date-sync" data-target="date_from" value="{{ date_from }}" style="width:140px;" title="From date">
+            <span style="color:#666;">–</span>
+            <input type="date" class="date-sync" data-target="date_to" value="{{ date_to }}" style="width:140px;" title="To date">
+        </span>
+
+        {# Mobile: toggle inline with city + dates button #}
+        <span class="mobile-only" style="margin-left:auto;">
+            <div class="toggle-wrap">
+                <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                   class="toggle-opt {% if not show_all %}active{% endif %}">My artists</a>
+                <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}&show_all=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                   class="toggle-opt {% if show_all %}active{% endif %}">All events</a>
+            </div>
+        </span>
     </form>
-    <div style="margin-left:auto;display:flex;gap:8px;">
-        {% if show_all %}
-        <form method="get" action="/events" style="display:inline;">
-            <input type="hidden" name="sort" value="{{ sort }}">
-            <input type="hidden" name="q" value="{{ q }}">
-            <input type="hidden" name="city" value="{{ city }}">
-            <button class="btn btn-outline" type="submit">Matched only</button>
-        </form>
-        {% else %}
-        <form method="get" action="/events" style="display:inline;">
-            <input type="hidden" name="sort" value="{{ sort }}">
-            <input type="hidden" name="q" value="{{ q }}">
-            <input type="hidden" name="city" value="{{ city }}">
-            <input type="hidden" name="show_all" value="1">
-            <button class="btn btn-outline" type="submit">Show all</button>
-        </form>
-        {% endif %}
-    </div>
 </div>
-<div class="controls" style="margin-top:-12px;gap:6px;">
+
+{# Desktop: quick pickers + toggle on second row #}
+<div class="controls desktop-only" style="margin-top:-12px;gap:6px;">
     <button type="button" class="btn-tiny date-preset" data-preset="tonight" onclick="setDateRange('tonight')">Tonight</button>
     <button type="button" class="btn-tiny date-preset" data-preset="weekend" onclick="setDateRange('weekend')">This weekend</button>
     <button type="button" class="btn-tiny date-preset" data-preset="week" onclick="setDateRange('week')">This week</button>
     <button type="button" class="btn-tiny date-preset" data-preset="month" onclick="setDateRange('month')">This month</button>
     <button type="button" class="btn-tiny date-preset" data-preset="clear" onclick="setDateRange('clear')">All time</button>
+    <div class="toggle-wrap" style="margin-left:auto;">
+        <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="toggle-opt {% if not show_all %}active{% endif %}">My artists</a>
+        <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}&show_all=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="toggle-opt {% if show_all %}active{% endif %}">All events</a>
+    </div>
+</div>
+
+{# Mobile: date picker dropdown (hidden until tapped) #}
+<div id="date-picker-dropdown" class="mobile-only date-picker-hidden">
+    <div style="background:#111;border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input type="date" class="date-sync" data-target="date_from" value="{{ date_from }}" style="flex:1;" title="From date">
+            <input type="date" class="date-sync" data-target="date_to" value="{{ date_to }}" style="flex:1;" title="To date">
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button type="button" class="btn-tiny date-preset" data-preset="tonight" onclick="setDateRange('tonight')">Tonight</button>
+            <button type="button" class="btn-tiny date-preset" data-preset="weekend" onclick="setDateRange('weekend')">This weekend</button>
+            <button type="button" class="btn-tiny date-preset" data-preset="week" onclick="setDateRange('week')">This week</button>
+            <button type="button" class="btn-tiny date-preset" data-preset="month" onclick="setDateRange('month')">This month</button>
+            <button type="button" class="btn-tiny date-preset" data-preset="clear" onclick="setDateRange('clear')">All time</button>
+        </div>
+    </div>
 </div>
 
 <div id="event-results">
 <span class="count">{{ total_count }} event{{ 's' if total_count != 1 }}</span>
 
 {% if events %}
-<table>
+<table style="table-layout:fixed;">
+    <colgroup>
+        <col style="width:70px;">
+        <col>
+        <col>
+        <col>
+        <col class="hide-mobile" style="width:80px;">
+        <col style="width:40px;">
+    </colgroup>
     <thead>
         <tr>
-            <th style="width:50px;white-space:nowrap;">
-                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
-                    Score{% if sort == 'score' %} ▼{% elif sort == 'score_asc' %} ▲{% endif %}
-                </a>
-            </th>
             <th style="white-space:nowrap;">
                 <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Date{% if sort == 'date' %} ▲{% elif sort == 'date_desc' %} ▼{% endif %}
@@ -66,40 +108,19 @@
             </th>
             <th>Event</th>
             <th>Venue</th>
-            <th>Matched Artists</th>
             <th>Lineup</th>
-            <th style="width:1%;white-space:nowrap;">Price</th>
+            <th class="hide-mobile" style="width:1%;white-space:nowrap;">Price</th>
             <th style="width:1%;white-space:nowrap;text-align:center;">Links</th>
         </tr>
     </thead>
     <tbody>
         {% for event in events %}
-        {% set score = event_scores.get(event.id, 0) %}
         {% set event_matches = matches_by_event.get(event.id, []) %}
         {% set matched_names = event_matches | map(attribute='matched_name') | map('lower') | list %}
         <tr>
-            <td>
-                {% if score > 0 %}
-                <span class="score {{ 'score-high' if score >= 50 else ('score-med' if score >= 30 else 'score-low') }}">
-                    {{ score | int }}
-                </span>
-                {% else %}
-                <span class="score score-low">—</span>
-                {% endif %}
-            </td>
-            <td style="white-space:nowrap;">{{ event.date.strftime('%a %d %b') }}</td>
+            <td style="white-space:nowrap;font-size:12px;">{{ event.date.strftime('%a %d/%m') }}</td>
             <td>{{ event.title }}</td>
             <td>{{ event.venue_name }}</td>
-            <td>
-                {% for m in event_matches %}
-                <a href="/artist/{{ m.artist.id }}" style="text-decoration:none;">
-                <span class="genre-tag high" title="{{ m.match_type }} match ({{ m.confidence | int }}%) for '{{ m.matched_name }}'">
-                    {{ m.artist.name }}
-                    <span style="opacity:0.6;font-size:10px;">{{ m.effective_score | int }}</span>
-                </span>
-                </a>
-                {% endfor %}
-            </td>
             <td>
                 {% set matched_artist_ids = {} %}
                 {% for m in event_matches %}
@@ -127,7 +148,7 @@
                 <span class="genre-tag" style="opacity:0.5;">+{{ ns.sorted | length - 6 }}</span>
                 {% endif %}
             </td>
-            <td style="white-space:nowrap;">
+            <td class="hide-mobile" style="white-space:nowrap;">
                 {% set sources = sources_by_event.get(event.id, []) %}
                 {% set prices = sources | selectattr('price') | map(attribute='price') | list %}
                 {% if prices %}
@@ -136,10 +157,19 @@
                 —
                 {% endif %}
             </td>
-            <td>
+            <td style="text-align:center;">
+                {% set sources = sources_by_event.get(event.id, []) %}
                 {% for src in sources %}
                     {% if src.source_url %}
-                    <a href="{{ src.source_url }}" target="_blank" class="btn-tiny" style="display:block;margin-bottom:2px;text-align:center;">{{ src.source_name }}</a>
+                    <a href="{{ src.source_url }}" target="_blank" class="source-icon" title="{{ src.source_name }}">
+                        {% if src.source_name == "ra" %}RA
+                        {% elif src.source_name == "dice" %}D
+                        {% elif src.source_name == "skiddle" %}SK
+                        {% elif src.source_name == "eventbrite" %}EB
+                        {% elif src.source_name == "ticketmaster" %}TM
+                        {% else %}{{ src.source_name[:2] | upper }}
+                        {% endif %}
+                    </a>
                     {% endif %}
                 {% endfor %}
             </td>
@@ -162,53 +192,85 @@
 
 {% block scripts %}
 <script>
-document.querySelectorAll('input[type="date"]').forEach(input => {
-    input.addEventListener('change', () => {
-        document.querySelectorAll('.date-preset').forEach(btn => btn.classList.remove('active'));
+// Sync visible date inputs to hidden canonical inputs
+function syncDateInputs(target, value) {
+    var hidden = document.getElementById(target === 'date_from' ? 'date-from-hidden' : 'date-to-hidden');
+    if (hidden) {
+        hidden.value = value;
+        hidden.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    // Also sync all visible date inputs with same target
+    document.querySelectorAll('.date-sync[data-target="' + target + '"]').forEach(function(el) {
+        el.value = value;
+    });
+}
+
+document.querySelectorAll('.date-sync').forEach(function(input) {
+    input.addEventListener('change', function() {
+        syncDateInputs(this.dataset.target, this.value);
+        document.querySelectorAll('.date-preset').forEach(function(btn) { btn.classList.remove('active'); });
+        updateDateBtnLabel();
     });
 });
 
-function setDateRange(preset) {
-    const form = document.getElementById('events-form');
-    const fromInput = form.querySelector('input[name="date_from"]');
-    const toInput = form.querySelector('input[name="date_to"]');
-    const today = new Date();
-    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function toggleDatePicker() {
+    var dd = document.getElementById('date-picker-dropdown');
+    dd.classList.toggle('date-picker-hidden');
+}
 
+function updateDateBtnLabel() {
+    var btn = document.querySelector('.date-toggle-btn');
+    if (!btn) return;
+    var from = document.getElementById('date-from-hidden').value;
+    var to = document.getElementById('date-to-hidden').value;
+    if (from && to) {
+        btn.textContent = from.slice(8) + '/' + from.slice(5,7) + ' – ' + to.slice(8) + '/' + to.slice(5,7);
+    } else if (from) {
+        btn.textContent = 'From ' + from.slice(8) + '/' + from.slice(5,7);
+    } else if (to) {
+        btn.textContent = 'Until ' + to.slice(8) + '/' + to.slice(5,7);
+    } else {
+        btn.textContent = 'Dates';
+    }
+}
+
+function setDateRange(preset) {
+    var form = document.getElementById('events-form');
+    var today = new Date();
+    var fmt = function(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+
+    var fromVal = '', toVal = '';
     if (preset === 'clear') {
-        fromInput.value = '';
-        toInput.value = '';
+        fromVal = ''; toVal = '';
     } else if (preset === 'tonight') {
-        fromInput.value = fmt(today);
-        toInput.value = fmt(today);
+        fromVal = fmt(today); toVal = fmt(today);
     } else if (preset === 'weekend') {
-        const day = today.getDay();
-        const fri = new Date(today);
+        var day = today.getDay();
+        var fri = new Date(today);
         fri.setDate(today.getDate() + ((5 - day + 7) % 7 || 7));
-        // If today is Fri, Sat, or Sun, start from today
         if (day === 5 || day === 6 || day === 0) fri.setTime(today.getTime());
-        const sun = new Date(fri);
+        var sun = new Date(fri);
         sun.setDate(fri.getDate() + (7 - fri.getDay()) % 7);
-        fromInput.value = fmt(day >= 5 || day === 0 ? today : fri);
-        toInput.value = fmt(sun);
+        fromVal = fmt(day >= 5 || day === 0 ? today : fri);
+        toVal = fmt(sun);
     } else if (preset === 'week') {
-        const end = new Date(today);
-        const daysToSun = (7 - today.getDay()) % 7 || 7;
+        var end = new Date(today);
+        var daysToSun = (7 - today.getDay()) % 7 || 7;
         end.setDate(today.getDate() + daysToSun);
-        fromInput.value = fmt(today);
-        toInput.value = fmt(end);
+        fromVal = fmt(today); toVal = fmt(end);
     } else if (preset === 'month') {
-        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        fromInput.value = fmt(today);
-        toInput.value = fmt(end);
+        var end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        fromVal = fmt(today); toVal = fmt(end);
     }
 
-    // Highlight active button
-    document.querySelectorAll('.date-preset').forEach(btn => {
+    syncDateInputs('date_from', fromVal);
+    syncDateInputs('date_to', toVal);
+
+    document.querySelectorAll('.date-preset').forEach(function(btn) {
         btn.classList.toggle('active', btn.dataset.preset === preset);
     });
 
-    // Submit the form — htmx intercepts this
+    updateDateBtnLabel();
     form.requestSubmit();
 }
 </script>

@@ -7,8 +7,8 @@ Describes the desired user interactions and page responses across all pages. Imp
 ## Global
 
 ### Layout
-- Fixed nav bar at top: **Artists**, **Events**, **Genres**, **Admin** links
-- User area in nav (right-aligned): shows display name + "Switch" + "Log out" when logged in, or "Link Spotify" button when not
+- **Desktop**: horizontal nav bar with **Artists**, **Events**, **Genres**, **Admin** links. User area right-aligned: display name + "Switch" + "Log out" when logged in, or "Link Spotify" button when not
+- **Mobile** (<=600px): hamburger button (top-left, fixed). Opens a left-side overlay panel (~70% width) with nav links and user area at the bottom. Tapping outside closes it.
 - Favicon: disco ball emoji (🪩)
 - Dark theme throughout
 
@@ -39,13 +39,13 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Re-import button**: triggers background Spotify re-import. Shows inline progress indicator that polls every 1s until complete.
 
 ### Table
-- Columns: Score, Artist, Genres, Signals
+- Columns: Score, Artist, Genres
+- **Score**: clickable — opens a modal to set a manual score (0–100). Shows "manual" label when overridden, "excluded" when excluded.
 - **Score header**: clickable, toggles between descending (default, ▼) and ascending (▲)
 - **Artist header**: clickable, toggles between A-Z (▲) and Z-A (▼)
 - **Score divider**: when sorted by score descending, a dashed line appears between score 30 and below with text "below this line: probably not going to dance to these"
 - **Artist name**: clickable, links to artist detail page
 - **Genre tags**: shared component (see above)
-- **Signals column**: shows breakdown of scoring signals — followed, saved tracks, intentional plays, playlist appearances, top artist ranges — each with point values. Ends with genre multiplier (e.g. "×1.0 genre match")
 
 ### Import progress
 - When import is running, an inline progress indicator appears next to the Re-import button
@@ -60,9 +60,10 @@ Describes the desired user interactions and page responses across all pages. Imp
 - "← Back to artists" link at top
 
 ### Content (top to bottom)
-1. Single-row table with: Score, Artist name, Genre tags, Signals (same format as artist list)
-2. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, City, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none.
-3. Embedded Spotify artist player widget (iframe) + link to open in Spotify
+1. Single-row table with: Score, Artist name, Genre tags, Signals (same format as artist list). Score shows "manual"/"excluded" labels when applicable.
+2. **Manual score controls**: "Score manually" button (opens modal) + "Exclude artist" checkbox. "Clear manual score" available in modal when a manual score is set.
+3. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, City, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none.
+4. Embedded Spotify artist player widget (iframe) + link to open in Spotify
 
 ---
 
@@ -76,14 +77,11 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events. Preserves city filter.
 
 ### Table
-- Columns: Score, Date, Event, Venue, Matched Artists, Lineup, Price, Links
-- **Score header**: clickable, toggles between descending (default, ▼) and ascending (▲)
+- Columns: Date, Event, Venue, Lineup, Price (desktop only), Links
 - **Date header**: clickable, toggles between ascending (earliest first, ▲) and descending (▼)
-- **Score**: event score based on sum of matched artist scores weighted by match confidence. Dash (—) if no matches.
 - **Date**: formatted as "Mon 01 Jan"
-- **Matched Artists**: shown as green genre-tag pills with artist name + their score in small text. Tooltip shows match type and confidence. Each pill links to `/artist/{id}` (no visual change — no underline or link colour).
 - **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow. Matched artist pills link to `/artist/{id}` (same styling as non-linked pills).
-- **Price**: cheapest price from sources, or dash if none
+- **Price**: cheapest price from sources, or dash if none. Hidden on mobile.
 - **Links**: buttons for each source (RA, Skiddle, Dice) linking to the event on that platform. Opens in new tab.
 
 ### Empty state
