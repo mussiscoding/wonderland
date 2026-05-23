@@ -171,12 +171,22 @@
         }
         a.sortable:hover { color: #1db954; }
 
+        .controls select,
+        .controls input[type="text"],
+        .controls .btn,
+        .controls .btn-tiny,
+        .controls .toggle-wrap,
+        .controls .date-toggle-btn {
+            height: 36px; box-sizing: border-box;
+        }
+
         .toggle-wrap {
             display: inline-flex; background: #1a1a1a; border: 1px solid #333;
-            border-radius: 4px; overflow: hidden;
+            border-radius: 4px; overflow: hidden; align-items: stretch;
         }
         .toggle-opt {
             padding: 4px 10px; font-size: 12px; font-weight: 600;
+            display: inline-flex; align-items: center;
             color: #666; text-decoration: none; cursor: pointer;
             transition: background 0.2s, color 0.2s;
         }
@@ -215,6 +225,8 @@
 
             .score { font-size: 14px; min-width: 30px; }
 
+            .genres-table { table-layout: fixed; }
+            .genres-table td:first-child, .genres-table th:first-child { word-break: break-word; }
             .hide-mobile { display: none !important; }
             .desktop-only { display: none !important; }
             .mobile-only { display: block !important; }

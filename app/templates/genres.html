@@ -10,15 +10,17 @@
 </div>
 {% else %}
 
-<div class="controls">
-    <form id="genre-filter-form" hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
-          hx-push-url="true"
-          action="/genres" method="get" style="display: flex; gap: 12px; align-items: center;">
-        <input type="hidden" name="sort" value="{{ sort }}">
-        <input type="text" name="q" value="{{ q }}" placeholder="Search genres..."
+<form id="genre-filter-form" hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
+      hx-push-url="true"
+      action="/genres" method="get">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <div class="controls">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search genres..." style="width: 100%;"
                hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
                hx-trigger="input changed delay:300ms" hx-push-url="true" hx-include="#genre-filter-form">
-        <select name="category"
+    </div>
+    <div class="controls">
+        <select name="category" style="width: auto;"
                 hx-get="/genres" hx-target="#genre-results" hx-select="#genre-results" hx-swap="outerHTML"
                 hx-trigger="change" hx-push-url="true" hx-include="#genre-filter-form">
             <option value="" {% if not category %}selected{% endif %}>All categories</option>
@@ -27,17 +29,18 @@
             <option value="medium" {% if category == "medium" %}selected{% endif %}>Medium</option>
             <option value="low" {% if category == "low" %}selected{% endif %}>Low</option>
         </select>
-    </form>
+</form>
+
     <form action="/genres/reset" method="post" style="margin-left: auto;"
           onsubmit="return confirm('Clear all genre classifications? Everything will be set to unclassified.');">
-        <button type="submit" class="btn-outline btn" style="font-size: 12px; padding: 6px 12px;">Clear all classifications</button>
+        <button type="submit" class="btn-outline btn" style="font-size: 12px;">Clear all classifications</button>
     </form>
-</div>
+    </div>
 
 <div id="genre-results">
 <p class="count">{{ total_count }} genres</p>
 
-<table>
+<table class="genres-table">
     <thead>
         <tr>
             <th>Genre</th>

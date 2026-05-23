@@ -11,7 +11,7 @@
         <input type="hidden" name="show_all" value="1">
         {% endif %}
 
-        <select name="city" style="width:auto;">
+        <select name="city" class="filter-pill" style="width:auto;">
             {% for key, cfg in city_options.items() %}
             <option value="{{ key }}" {% if city == key %}selected{% endif %}>{{ cfg.label }}</option>
             {% endfor %}
@@ -19,7 +19,7 @@
         </select>
 
         {# Mobile: date button that opens dropdown #}
-        <button type="button" class="btn-tiny date-toggle-btn" onclick="toggleDatePicker()" style="white-space:nowrap;">
+        <button type="button" class="filter-pill btn-tiny date-toggle-btn" onclick="toggleDatePicker()" style="white-space:nowrap;">
             {% if date_from and date_to %}
             {{ date_from[8:] }}/{{ date_from[5:7] }} – {{ date_to[8:] }}/{{ date_to[5:7] }}
             {% elif date_from %}
