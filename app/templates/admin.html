@@ -18,4 +18,15 @@
     <p style="color: #f0b429; margin-top: 12px; font-size: 13px;">Fetch in progress: {{ progress.step }}</p>
     {% endif %}
 </div>
+
+<div style="background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; max-width: 500px; margin-top: 16px;">
+    <h3 style="margin-bottom: 12px;">Resolve Lineup Artists</h3>
+    <p style="color: #888; font-size: 13px; margin-bottom: 16px;">Search Spotify for artists in event lineups that aren't in the database yet. Only processes events with at least one matched artist.</p>
+    <form method="post" action="/admin/resolve">
+        <button class="btn" type="submit">Resolve Artists</button>
+    </form>
+    {% if resolve_progress and resolve_progress.running %}
+    <p style="color: #f0b429; margin-top: 12px; font-size: 13px;">Resolving: {{ resolve_progress.step }} ({{ resolve_progress.current }}/{{ resolve_progress.total }})</p>
+    {% endif %}
+</div>
 {% endblock %}

@@ -10,6 +10,7 @@ from app.cities import CITY_CONFIG, ALL_CITIES
 from app.database import get_session, engine
 from app.events import fetch_all_events, _get_event_progress
 from app.matching import run_matching
+from app.spotify import resolve_lineup_artists, resolve_progress
 from app.templating import templates, is_admin_user
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ def admin_page(request: Request, session: Session = Depends(get_session)):
             "current_user": user,
             "city_options": CITY_CONFIG,
             "progress": progress,
+            "resolve_progress": resolve_progress,
         },
     )
 
@@ -102,4 +104,61 @@ def fetch_progress_bar(request: Request, city: str = "london", session: Session 
         request,
         "fetch_progress_bar.html",
         {"progress": progress, "city": city},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Resolve lineup artists
+# ---------------------------------------------------------------------------
+
+def _run_resolve_background():
+    """Run lineup artist resolution in a background thread."""
+    with Session(engine) as session:
+        try:
+            resolve_lineup_artists(session)
+        except Exception as e:
+            logger.error(f"Background resolve failed: {e}")
+            resolve_progress.update(running=False, step=f"Error: {e}", done=False)
+
+
+@router.post("/admin/resolve")
+def run_resolve(request: Request, session: Session = Depends(get_session)):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if not is_admin_user(user):
+        return RedirectResponse("/artists", status_code=303)
+
+    if resolve_progress["running"]:
+        return RedirectResponse("/admin/resolve/progress", status_code=303)
+
+    threading.Thread(target=_run_resolve_background, daemon=True).start()
+    return RedirectResponse("/admin/resolve/progress", status_code=303)
+
+
+@router.get("/admin/resolve/progress", response_class=HTMLResponse)
+def resolve_progress_page(request: Request, session: Session = Depends(get_session)):
+    user = get_current_user(request, session)
+    if resolve_progress["done"] and not resolve_progress["running"]:
+        return RedirectResponse("/admin", status_code=303)
+
+    return templates.TemplateResponse(
+        request,
+        "fetch_progress.html",
+        {
+            "progress": resolve_progress,
+            "current_user": user,
+            "city": "",
+            "heading": "Resolving Lineup Artists",
+            "progress_bar_url": "/admin/resolve/progress-bar",
+        },
+    )
+
+
+@router.get("/admin/resolve/progress-bar", response_class=HTMLResponse)
+def resolve_progress_bar(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "fetch_progress_bar.html",
+        {"progress": resolve_progress, "redirect_url": "/admin"},
     )

@@ -57,6 +57,9 @@ def run_migration():
         # Multi-city: backfill venue_location and recompute dedupe keys
         _migrate_dedupe_keys_for_city(session)
 
+        # Add name_normalised column to Artist
+        _add_artist_name_normalised(session)
+
     # Rename old eventbrite venues file
     _rename_eventbrite_venue_file()
 
@@ -283,6 +286,31 @@ def _migrate_dedupe_keys_for_city(session: Session):
     if migrated > 0:
         session.commit()
         logger.info(f"  Migrated {migrated} event dedupe keys to include city")
+
+
+def _add_artist_name_normalised(session: Session):
+    """Add name_normalised column to Artist and populate it."""
+    try:
+        session.exec(text("SELECT name_normalised FROM artist LIMIT 1")).all()
+        return  # Already exists
+    except Exception:
+        pass
+
+    from app.matching import normalise_name
+
+    logger.info("Adding name_normalised column to Artist table...")
+    session.exec(text("ALTER TABLE artist ADD COLUMN name_normalised VARCHAR DEFAULT ''"))
+    session.commit()
+
+    rows = session.exec(text("SELECT id, name FROM artist")).all()
+    for row_id, name in rows:
+        norm = normalise_name(name)
+        session.exec(
+            text("UPDATE artist SET name_normalised = :norm WHERE id = :id"),
+            params={"norm": norm, "id": row_id},
+        )
+    session.commit()
+    logger.info(f"  Populated name_normalised for {len(rows)} artists")
 
 
 def _rename_eventbrite_venue_file():

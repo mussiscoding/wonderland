@@ -25,6 +25,7 @@ class Artist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     spotify_id: str = Field(unique=True, index=True)
     name: str
+    name_normalised: str = Field(default="", index=True)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(
         default_factory=_utcnow,

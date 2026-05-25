@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div style="text-align:center; padding: 60px 20px;">
-    <h2>Fetching Events</h2>
+    <h2>{{ heading | default("Fetching Events") }}</h2>
     <div id="progress-area"
-         hx-get="/admin/fetch/progress-bar?city={{ city }}"
+         hx-get="{{ progress_bar_url | default('/admin/fetch/progress-bar?city=' + city) }}"
          hx-trigger="load, every 2s"
          hx-swap="innerHTML">
         <p class="progress-step">Starting...</p>

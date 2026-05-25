@@ -1,5 +1,5 @@
 {% if progress.done and not progress.running %}
-<script>window.location.href = '/events?city={{ city }}';</script>
+<script>window.location.href = '{{ redirect_url | default("/events?city=" + (city | default(""))) }}';</script>
 {% else %}
 <p class="progress-step">{{ progress.step }}</p>
 {% if progress.total > 0 %}

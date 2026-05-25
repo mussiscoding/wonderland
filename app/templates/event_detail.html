@@ -91,11 +91,11 @@
 </table>
 {% endif %}
 
-{% if lineup | selectattr("is_matched") | list %}
+{% if lineup | selectattr("artist") | list %}
 <h3 style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-top:24px;margin-bottom:12px;">Listen</h3>
 <div style="display:flex;flex-wrap:wrap;gap:16px;">
     {% for item in lineup %}
-    {% if item.is_matched %}
+    {% if item.artist %}
     <div style="width:300px;">
         <iframe src="https://open.spotify.com/embed/artist/{{ item.artist.spotify_id }}?utm_source=generator&theme=0"
                 width="100%" height="152" frameborder="0"

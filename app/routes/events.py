@@ -244,17 +244,31 @@ def show_event(
         if m.artist_id in matched_artist_ids
     ])
 
+    # Look up all lineup artists by normalised name
+    lineup_names = event.lineup_parsed or []
+    norms_by_name = {n: normalise_name(n) for n in lineup_names}
+    lineup_norms = [norm for norm in norms_by_name.values() if norm]
+    resolved_artists = {}
+    if lineup_norms:
+        resolved_artists = {
+            a.name_normalised: a
+            for a in session.exec(
+                select(Artist).where(Artist.name_normalised.in_(lineup_norms))
+            ).all()
+        }
+
     lineup = []
-    for name in (event.lineup_parsed or []):
-        norm = normalise_name(name)
-        artist = matched_names_norm.get(norm)
+    for name in lineup_names:
+        norm = norms_by_name.get(name, "")
+        matched_artist = matched_names_norm.get(norm)
+        resolved_artist = matched_artist or resolved_artists.get(norm)
         lineup.append({
             "name": name,
-            "artist": artist,
-            "is_matched": artist is not None,
+            "artist": resolved_artist,
+            "is_matched": matched_artist is not None,
         })
-    # Sort: matched first
-    lineup.sort(key=lambda x: (not x["is_matched"], x["name"].lower()))
+    # Sort: matched first, then resolved, then unresolved
+    lineup.sort(key=lambda x: (not x["is_matched"], x["artist"] is None, x["name"].lower()))
 
     # Similar events: other events sharing 2+ matched artists
     similar_events = []

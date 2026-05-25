@@ -6,8 +6,11 @@ import httpx
 import spotipy
 from sqlmodel import Session, select
 
+from spotipy.oauth2 import SpotifyClientCredentials
+
 from app.config import settings
-from app.models import Artist, ArtistGenre, GenreClassification, UserArtist
+from app.matching import normalise_name
+from app.models import Artist, ArtistGenre, Event, GenreClassification, Match, UserArtist
 from app.scoring import compute_auto_score, get_genre_map, rescore_user_artists, seed_user_genres
 
 logger = logging.getLogger(__name__)
@@ -82,12 +85,14 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
         existing = existing_by_sid.get(spotify_id)
         if existing:
             existing.name = data["name"]
+            existing.name_normalised = normalise_name(data["name"])
             session.add(existing)
             updated_count += 1
         else:
             artist = Artist(
                 spotify_id=spotify_id,
                 name=data["name"],
+                name_normalised=normalise_name(data["name"]),
             )
             session.add(artist)
             new_count += 1
@@ -632,3 +637,145 @@ def _fetch_recently_played(sp: spotipy.Spotify, artist_data: dict):
                     artist_data[artist["id"]]["signals"]["intentional_plays"] += 1
     except Exception as e:
         logger.warning(f"Failed to fetch recently played: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Resolve lineup artists to Spotify IDs
+# ---------------------------------------------------------------------------
+
+# Progress tracking for resolve task
+resolve_progress: dict = {
+    "running": False, "step": "", "current": 0, "total": 0, "done": False,
+}
+
+
+def _get_client_credentials_sp() -> spotipy.Spotify:
+    """Create a Spotify client using client credentials (no user token).
+
+    Retries disabled — we handle rate limits ourselves by stopping early.
+    """
+    return spotipy.Spotify(
+        auth_manager=SpotifyClientCredentials(
+            client_id=settings.spotify_client_id,
+            client_secret=settings.spotify_client_secret,
+        ),
+        retries=0,
+    )
+
+
+def resolve_lineup_artists(session: Session) -> dict:
+    """Search Spotify for unresolved lineup artists on matched events.
+
+    Only processes events that have at least one Match record (i.e. events
+    relevant to at least one user). Skips names already in the Artist table.
+    Returns a summary dict.
+    """
+    progress = resolve_progress
+    progress.update(running=True, step="Finding unresolved lineup names...", current=0, total=0, done=False)
+
+    # Find event IDs that have at least one match
+    matched_event_ids = set(
+        row for row in session.exec(select(Match.event_id).distinct()).all()
+    )
+    if not matched_event_ids:
+        progress.update(running=False, step="No matched events", done=True)
+        return {"resolved": 0, "already_known": 0, "not_found": 0}
+
+    # Load those events
+    events = session.exec(
+        select(Event).where(Event.id.in_(matched_event_ids))
+    ).all()
+
+    # Collect all unique normalised lineup names
+    all_names: dict[str, str] = {}  # norm -> original display name
+    for event in events:
+        for name in (event.lineup_parsed or []):
+            norm = normalise_name(name)
+            if norm and norm not in all_names:
+                all_names[norm] = name
+
+    # Query which of these names already have Artist rows
+    all_norm_list = list(all_names.keys())
+    known_norms: set[str] = set()
+    # Batch query in chunks (SQLite has a variable limit)
+    for i in range(0, len(all_norm_list), 500):
+        batch = all_norm_list[i:i + 500]
+        known_norms.update(
+            row for row in session.exec(
+                select(Artist.name_normalised).where(Artist.name_normalised.in_(batch))
+            ).all()
+        )
+
+    # Filter to unresolved names
+    unresolved = {
+        norm: display for norm, display in all_names.items()
+        if norm not in known_norms
+    }
+
+    already_known = len(all_names) - len(unresolved)
+    if not unresolved:
+        progress.update(running=False, step="All lineup artists already resolved", done=True)
+        return {"resolved": 0, "already_known": already_known, "not_found": 0}
+
+    logger.info(f"Resolving {len(unresolved)} lineup artists via Spotify search...")
+    progress.update(step="Searching Spotify...", current=0, total=len(unresolved))
+
+    from rapidfuzz import fuzz
+
+    sp = _get_client_credentials_sp()
+    known_spotify_ids = set(
+        row for row in session.exec(select(Artist.spotify_id)).all()
+    )
+    resolved = 0
+    not_found = 0
+
+    for i, (norm, display_name) in enumerate(unresolved.items()):
+        progress["current"] = i + 1
+        try:
+            results = sp.search(q=display_name, type="artist", limit=1)
+            items = results.get("artists", {}).get("items", [])
+            if items:
+                found = items[0]
+                found_norm = normalise_name(found["name"])
+                # Only accept if the Spotify result is a reasonable match
+                if fuzz.ratio(norm, found_norm) >= 75:
+                    if found["id"] not in known_spotify_ids:
+                        artist = Artist(
+                            spotify_id=found["id"],
+                            name=found["name"],
+                            name_normalised=found_norm,
+                        )
+                        session.add(artist)
+                        known_spotify_ids.add(found["id"])
+                        resolved += 1
+                    else:
+                        already_known += 1
+                else:
+                    not_found += 1
+            else:
+                not_found += 1
+
+            # Batch commit every 50
+            if (i + 1) % 50 == 0:
+                session.commit()
+
+            time.sleep(0.5)
+        except spotipy.exceptions.SpotifyException as e:
+            if e.http_status == 429:
+                logger.warning(f"Spotify rate limit hit after {resolved} resolved. Stopping early.")
+                progress["step"] = f"Rate limited — resolved {resolved} so far"
+                break
+            logger.warning(f"Spotify search failed for '{display_name}': {e}")
+            not_found += 1
+            time.sleep(1)
+        except Exception as e:
+            logger.warning(f"Spotify search failed for '{display_name}': {e}")
+            not_found += 1
+            time.sleep(1)
+
+    session.commit()
+
+    summary = {"resolved": resolved, "already_known": already_known, "not_found": not_found}
+    logger.info(f"Lineup resolve complete: {summary}")
+    progress.update(running=False, step="Done", done=True)
+    return summary
