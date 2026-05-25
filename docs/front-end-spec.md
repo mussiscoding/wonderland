@@ -98,29 +98,32 @@ Describes the desired user interactions and page responses across all pages. Imp
 
 ### Header
 - Event title, date (full format: "Friday 05 June 2026"), venue name, city
-- Event score (large, colour-coded) with "event score" label
-
-### Lineup
-- Full lineup as pills — matched artists in green (linked to artist detail), unmatched in grey
-- Sorted: matched artists first, then alphabetical
-
-### Score breakdown
-- Columnar breakdown showing each matched artist's contribution to the event score
-- Artist names link to their detail pages
 
 ### Tickets
 - Buttons for each source (Resident Advisor, Dice, Skiddle, etc.) linking to the event page
 - Each button shows the price from that source if available
+
+### Lineup
+- Full lineup as pills — matched artists in green (linked to artist detail), unmatched in grey
+- Sorted: matched artists first, then resolved (have Spotify ID but not in user's library), then unresolved
+- Resolved artists come from the admin "Resolve Lineup Artists" step which searches Spotify for lineup names
+
+### Your score breakdown
+- Headed "Your score breakdown" — personalised to the current user
+- Columnar breakdown showing each matched artist's contribution to the event score
+- Artist names link to their detail pages
+- Total line shows colour-coded "your event score" label
+
+### Listen
+- Spotify embed players for all resolved artists (matched + resolved via Spotify search), compact 152px height
+- Displayed in a flex-wrap grid (300px per embed)
+- Only shown for artists with a known Spotify ID; unresolved lineup names are skipped
 
 ### Similar events
 - Table of other events sharing matched artists with this event
 - Columns: Date, Event (linked), Venue, Shared artists (as green pills)
 - Requires 2+ shared artists (or 1 if the event has ≤2 matched artists)
 - Limited to future events, sorted by shared count descending, max 10
-
-### Listen
-- Spotify embed players for each matched artist (compact 152px height)
-- Displayed in a flex-wrap grid (300px per embed)
 
 ---
 
