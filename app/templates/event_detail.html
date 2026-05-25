@@ -41,23 +41,17 @@
             {% endfor %}
         </div>
 
-        {% if event_score > 0 %}
-        <div style="margin-bottom:20px;">
-            <span class="score {% if event_score >= 50 %}score-high{% elif event_score >= 30 %}score-med{% else %}score-low{% endif %}" style="font-size:24px;">
-                {{ event_score | round(0) | int }}
-            </span>
-            <span style="color:#888;font-size:13px;margin-left:8px;">event score</span>
-        </div>
-        {% endif %}
-
         {% if breakdown_rows %}
-        <h3 style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Score breakdown</h3>
+        <h3 style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Your score breakdown</h3>
         <div class="breakdown-rows" style="max-width:250px;margin-bottom:24px;">
             {% for row in breakdown_rows %}
             <div class="breakdown-row"><span class="breakdown-pts">+{{ row.contrib | round(0) | int }}</span><span class="breakdown-label"><a href="/artist/{{ row.artist_id }}" style="color:#999;text-decoration:none;">{{ row.name }}</a></span></div>
             {% endfor %}
             <div class="breakdown-divider"></div>
-            <div class="breakdown-row breakdown-total"><span class="breakdown-pts">{{ event_score | round(0) | int }}</span><span class="breakdown-label">event score</span></div>
+            <div class="breakdown-row breakdown-total">
+                <span class="breakdown-pts score {% if event_score >= 50 %}score-high{% elif event_score >= 30 %}score-med{% else %}score-low{% endif %}">{{ event_score | round(0) | int }}</span>
+                <span class="breakdown-label">your event score</span>
+            </div>
         </div>
         {% endif %}
     </div>
