@@ -7,29 +7,15 @@ from sqlmodel import Session
 
 from app.auth import get_current_user
 from app.cities import CITY_CONFIG, ALL_CITIES
-from app.config import settings
 from app.database import get_session, engine
 from app.events import fetch_all_events, _get_event_progress
 from app.matching import run_matching
-from app.templating import templates
+from app.templating import templates, is_admin_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_admin_ids = None
-
-
-def _get_admin_ids() -> set[str]:
-    global _admin_ids
-    if _admin_ids is None:
-        raw = settings.admin_spotify_ids
-        _admin_ids = {s.strip() for s in raw.split(",") if s.strip()} if raw else set()
-    return _admin_ids
-
-
-def _is_admin(user) -> bool:
-    return user.spotify_id in _get_admin_ids()
 
 
 def _run_fetch_background(user_id: int, cities: list[str]):
@@ -51,7 +37,7 @@ def admin_page(request: Request, session: Session = Depends(get_session)):
     user = get_current_user(request, session)
     if not user:
         return RedirectResponse("/login", status_code=303)
-    if not _is_admin(user):
+    if not is_admin_user(user):
         return RedirectResponse("/artists", status_code=303)
 
     progress = _get_event_progress(user.id)
@@ -76,7 +62,7 @@ def run_fetch(
     user = get_current_user(request, session)
     if not user:
         return RedirectResponse("/login", status_code=303)
-    if not _is_admin(user):
+    if not is_admin_user(user):
         return RedirectResponse("/artists", status_code=303)
 
     progress = _get_event_progress(user.id)

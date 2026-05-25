@@ -40,4 +40,4 @@ app.include_router(genres.router)
 
 @app.get("/")
 def home():
-    return RedirectResponse("/artists")
+    return RedirectResponse("/events")
