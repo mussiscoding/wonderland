@@ -31,9 +31,8 @@
                 {% include "_genre_tags.html" %}
             </td>
             <td>
-                {% if user_artist %}
-                {% set signals = user_artist.source_signals %}
-                {% include "_signal_breakdown.html" %}
+                {% if breakdown %}
+                {% include "_score_breakdown.html" %}
                 {% else %}
                 <div class="signals"><span style="color: #666;">No scoring data for this artist</span></div>
                 {% endif %}

@@ -84,36 +84,58 @@ def genre_multiplier(genres: list[str], genre_map: dict[str, str]) -> float:
     return sum(classified) / len(classified)
 
 
-def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[str, str]) -> float:
-    signal_score = 0.0
+def score_breakdown(source_signals: dict, genres: list[str], genre_map: dict[str, str]) -> dict:
+    """Build a breakdown of score components for display.
+
+    Returns {rows: [{pts, label}], mult: float, score: int}.
+    """
+    w = SIGNAL_WEIGHTS
+    rows = []
 
     if source_signals.get("followed"):
-        signal_score += 30
+        rows.append({"pts": w["followed"]["points"], "label": "followed"})
 
-    saved_count = source_signals.get("saved_tracks", 0)
-    signal_score += min(saved_count * 7, 35)
+    saved = source_signals.get("saved_tracks", 0)
+    if saved:
+        pts = min(saved * w["saved_tracks"]["per"], w["saved_tracks"]["cap"])
+        rows.append({"pts": pts, "label": f"{saved} saved"})
 
-    intentional_count = source_signals.get("intentional_plays", 0)
-    signal_score += min(intentional_count * 5, 35)
+    intentional = source_signals.get("intentional_plays", 0)
+    if intentional:
+        pts = min(intentional * w["intentional_plays"]["per"], w["intentional_plays"]["cap"])
+        rows.append({"pts": pts, "label": f"{intentional} active play{'s' if intentional != 1 else ''}"})
 
-    playlist_count = source_signals.get("playlist_appearances", 0)
-    signal_score += min(playlist_count * 4, 28)
+    playlists = source_signals.get("playlist_appearances", 0)
+    if playlists:
+        pts = min(playlists * w["playlist_appearances"]["per"], w["playlist_appearances"]["cap"])
+        rows.append({"pts": pts, "label": f"{playlists} playlist{'s' if playlists != 1 else ''}"})
 
-    unique_songs = source_signals.get("unique_songs", 0)
-    signal_score += min(unique_songs * 2, 28)
+    unique = source_signals.get("unique_songs", 0)
+    if unique:
+        pts = min(unique * w["unique_songs"]["per"], w["unique_songs"]["cap"])
+        rows.append({"pts": pts, "label": f"{unique} track{'s' if unique != 1 else ''} in library"})
 
-    top_artist_points = {"short_term": 20, "medium_term": 10, "long_term": 5}
     top_artist_ranges = source_signals.get("top_artist", [])
-    # Support legacy boolean format
     if top_artist_ranges is True:
-        signal_score += 10
-    else:
-        signal_score += min(sum(top_artist_points.get(r, 0) for r in top_artist_ranges), 35)
+        rows.append({"pts": w["top_artist"]["legacy_points"], "label": "top artist"})
+    elif top_artist_ranges:
+        pts = min(
+            sum(w["top_artist"].get(r, 0) for r in top_artist_ranges),
+            w["top_artist"]["cap"],
+        )
+        if pts:
+            rows.append({"pts": pts, "label": "top artist"})
 
-    multiplier = genre_multiplier(genres, genre_map)
-    score = multiplier * signal_score
+    signal_total = sum(r["pts"] for r in rows)
+    mult = round(genre_multiplier(genres, genre_map), 2)
+    score = min(round(mult * signal_total), 100)
 
-    return min(round(score, 1), 100.0)
+    return {"rows": rows, "mult": mult, "score": score}
+
+
+def compute_auto_score(source_signals: dict, genres: list[str], genre_map: dict[str, str]) -> float:
+    bd = score_breakdown(source_signals, genres, genre_map)
+    return min(round(bd["mult"] * sum(r["pts"] for r in bd["rows"]), 1), 100.0)
 
 
 def seed_user_genres(session: Session, user_id: int, profile_name: str = "dance") -> None:

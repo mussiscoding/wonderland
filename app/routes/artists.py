@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.auth import get_current_user, get_spotify_client
 from app.database import get_session, engine
 from app.models import Artist, ArtistGenre, Event, EventSource, Match, UserArtist
-from app.scoring import get_genre_map, user_has_genres, SIGNAL_WEIGHTS, CATEGORY_MULTIPLIERS
+from app.scoring import get_genre_map, user_has_genres, score_breakdown
 from app.spotify import import_all_artists, import_progress, _get_progress, backfill_lastfm
 from app.templating import templates
 
@@ -182,6 +182,11 @@ def show_artist(
             sources_by_event.setdefault(src.event_id, []).append(src)
     match_by_event = {m.event_id: m for m in matches}
 
+    genre_map = get_genre_map(session, user.id)
+    breakdown = score_breakdown(
+        user_artist.source_signals or {}, artist_genres, genre_map
+    ) if user_artist else None
+
     return templates.TemplateResponse(
         request,
         "artist_detail.html",
@@ -189,10 +194,9 @@ def show_artist(
             "artist": artist,
             "artist_genres": artist_genres,
             "user_artist": user_artist,
-            "genre_map": get_genre_map(session, user.id),
+            "breakdown": breakdown,
+            "genre_map": genre_map,
             "current_user": user,
-            "weights": SIGNAL_WEIGHTS,
-            "category_multipliers": CATEGORY_MULTIPLIERS,
             "events": events,
             "match_by_event": match_by_event,
             "sources_by_event": sources_by_event,
@@ -224,8 +228,6 @@ def list_artists(
                 "genre_map": {},
                 "total_count": 0,
                 "import_progress": _EMPTY_PROGRESS,
-                "weights": SIGNAL_WEIGHTS,
-                "category_multipliers": CATEGORY_MULTIPLIERS,
             },
         )
 
@@ -265,6 +267,7 @@ def list_artists(
             genres_by_artist.setdefault(ag.artist_id, []).append(ag.genre_name)
 
     # Build merged artist+score objects for the template
+    genre_map = get_genre_map(session, user.id)
     merged = []
     for ua in user_artists:
         artist = artists_by_id.get(ua.artist_id)
@@ -272,15 +275,16 @@ def list_artists(
             continue
         if genre_filter_ids is not None and ua.artist_id not in genre_filter_ids:
             continue
+        artist_genres = genres_by_artist.get(artist.id, [])
         merged.append({
             "id": artist.id,
             "name": artist.name,
-            "genres": genres_by_artist.get(artist.id, []),
+            "genres": artist_genres,
             "effective_score": ua.effective_score,
             "auto_score": ua.auto_score,
             "manual_score": ua.manual_score,
             "excluded": ua.excluded,
-            "source_signals": ua.source_signals or {},
+            "breakdown": score_breakdown(ua.source_signals or {}, artist_genres, genre_map),
             "spotify_id": artist.spotify_id,
         })
 
@@ -308,11 +312,9 @@ def list_artists(
             "genre": genre,
             "sort": sort,
             "current_user": user,
-            "genre_map": get_genre_map(session, user.id),
+            "genre_map": genre_map,
             "total_count": len(merged),
             "import_progress": progress,
-            "weights": SIGNAL_WEIGHTS,
-            "category_multipliers": CATEGORY_MULTIPLIERS,
         },
     )
 

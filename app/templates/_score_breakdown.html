@@ -1,0 +1,12 @@
+{# Score breakdown partial — columnar math format.
+   Expects: breakdown dict with {rows: [{pts, label}], mult: float, score: int}
+#}
+<div class="breakdown-rows">
+{% for row in breakdown.rows %}
+<div class="breakdown-row"><span class="breakdown-pts">+{{ row.pts | int }}</span><span class="breakdown-label">{{ row.label }}</span></div>
+{% endfor %}
+<div class="breakdown-divider"></div>
+<div class="breakdown-row"><span class="breakdown-pts">&times;{{ breakdown.mult }}</span><span class="breakdown-label">genre match</span></div>
+<div class="breakdown-divider"></div>
+<div class="breakdown-row breakdown-total"><span class="breakdown-pts">{{ breakdown.score }}</span><span class="breakdown-label">score</span></div>
+</div>
