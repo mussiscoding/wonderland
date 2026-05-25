@@ -77,16 +77,50 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events. Preserves city filter.
 
 ### Table
-- Columns: Date, Event, Venue, Lineup, Price (desktop only), Links
+- Columns: Score, Date, Event, Venue, Lineup, Links
+- **Score**: event relevance score (sum of matched artist contributions). Colour-coded like artist scores. Hover tooltip shows breakdown of which artists contribute how many points. Sortable (▼/▲).
 - **Date header**: clickable, toggles between ascending (earliest first, ▲) and descending (▼)
-- **Date**: formatted as "Mon 01 Jan"
-- **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow. Matched artist pills link to `/artist/{id}` (same styling as non-linked pills).
-- **Price**: cheapest price from sources, or dash if none. Hidden on mobile.
+- **Date**: formatted as "Mon 01/06"
+- **Event title**: clickable, links to `/event/{id}` detail page
+- **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow. Matched artist pills link to `/artist/{id}`.
 - **Links**: buttons for each source (RA, Skiddle, Dice) linking to the event on that platform. Opens in new tab.
 
 ### Empty state
 - No matched events: suggests showing all events or fetching new ones
 - No events at all: prompts to fetch events
+
+---
+
+## Event Detail (`/event/{id}`)
+
+### Navigation
+- "← Back to events" link at top
+
+### Header
+- Event title, date (full format: "Friday 05 June 2026"), venue name, city
+- Event score (large, colour-coded) with "event score" label
+
+### Lineup
+- Full lineup as pills — matched artists in green (linked to artist detail), unmatched in grey
+- Sorted: matched artists first, then alphabetical
+
+### Score breakdown
+- Columnar breakdown showing each matched artist's contribution to the event score
+- Artist names link to their detail pages
+
+### Tickets
+- Buttons for each source (Resident Advisor, Dice, Skiddle, etc.) linking to the event page
+- Each button shows the price from that source if available
+
+### Similar events
+- Table of other events sharing matched artists with this event
+- Columns: Date, Event (linked), Venue, Shared artists (as green pills)
+- Requires 2+ shared artists (or 1 if the event has ≤2 matched artists)
+- Limited to future events, sorted by shared count descending, max 10
+
+### Listen
+- Spotify embed players for each matched artist (compact 152px height)
+- Displayed in a flex-wrap grid (300px per embed)
 
 ---
 
@@ -103,12 +137,12 @@ Genre data is per-user — each user has their own genre classifications via `Us
 - **Clear all classifications button**: sets all genre classifications to unclassified. Requires confirmation dialog. Positioned right-aligned in controls bar.
 
 ### Table
-- Columns: Genre, Artists, Category, Actions
+- Columns: Genre, Artists, Category, Rating
 - **Genre name**: clickable, links to genre detail page
 - **Artists header**: clickable, toggles sort by artist count (descending ▼ → ascending ▲ → default)
 - **Artists column**: count of user's artists with this genre
 - **Category column**: shows classification as a coloured tag (green for high, amber for medium, grey for low/unclassified)
-- **Actions column**: three small buttons (H, M, L) for classifying genre as High, Medium, or Low
+- **Rating column**: three small buttons (H, M, L) for classifying genre as High, Medium, or Low
   - Active classification is highlighted (green for H, amber for M, grey for L)
   - Clicking a button immediately reclassifies the genre for this user only, updates just that row inline (no full page reload), and triggers a rescore of the user's artists
 

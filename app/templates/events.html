@@ -147,7 +147,7 @@
                 {% endif %}
             </td>
             <td style="white-space:nowrap;font-size:12px;">{{ event.date.strftime('%a %d/%m') }}</td>
-            <td>{{ event.title }}</td>
+            <td><a href="/event/{{ event.id }}">{{ event.title }}</a></td>
             <td>{{ event.venue_name }}</td>
             <td>
                 {% set matched_artist_ids = {} %}

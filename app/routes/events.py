@@ -9,6 +9,7 @@ from app.auth import get_current_user
 from app.cities import CITY_CONFIG
 from app.database import get_session
 from app.models import Artist, Event, EventSource, Match, UserArtist
+from app.matching import normalise_name
 from app.scoring import compute_event_score
 from app.templating import templates
 
@@ -167,6 +168,146 @@ def list_events(
             "date_to": date_to,
             "city": city,
             "city_options": CITY_CONFIG,
+            "current_user": user,
+        },
+    )
+
+
+@router.get("/event/{event_id}", response_class=HTMLResponse)
+def show_event(
+    request: Request,
+    event_id: int,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    event = session.get(Event, event_id)
+    if not event:
+        return RedirectResponse("/events", status_code=303)
+
+    # Load sources for this event
+    sources = session.exec(
+        select(EventSource).where(EventSource.event_id == event_id)
+    ).all()
+
+    # Load matches for this event
+    matches = session.exec(
+        select(Match).where(Match.event_id == event_id)
+    ).all()
+
+    artists_by_id = {}
+    if matches:
+        artist_ids = [m.artist_id for m in matches]
+        artists_by_id = {
+            a.id: a for a in session.exec(
+                select(Artist).where(Artist.id.in_(artist_ids))
+            ).all()
+        }
+
+    # Load user's artist data for matched artists only
+    ua_by_artist_id = {}
+    if matches:
+        ua_by_artist_id = {
+            ua.artist_id: ua
+            for ua in session.exec(
+                select(UserArtist).where(
+                    UserArtist.user_id == user.id,
+                    UserArtist.artist_id.in_(artist_ids),
+                )
+            ).all()
+        }
+
+    # Build match info, score breakdown, and normalised name lookup
+    matched_artist_ids = set()
+    breakdown_rows = []
+    matched_names_norm = {}
+    for m in matches:
+        artist = artists_by_id.get(m.artist_id)
+        ua = ua_by_artist_id.get(m.artist_id)
+        if not artist or not ua or ua.excluded:
+            continue
+        matched_artist_ids.add(m.artist_id)
+        matched_names_norm[normalise_name(m.matched_name)] = artist
+        contrib = round(ua.effective_score * m.confidence / 100.0, 1)
+        breakdown_rows.append({
+            "name": artist.name,
+            "artist_id": artist.id,
+            "contrib": contrib,
+        })
+    breakdown_rows.sort(key=lambda r: r["contrib"], reverse=True)
+
+    event_score = compute_event_score([
+        (ua_by_artist_id[m.artist_id].effective_score, m.confidence)
+        for m in matches
+        if m.artist_id in matched_artist_ids
+    ])
+
+    lineup = []
+    for name in (event.lineup_parsed or []):
+        norm = normalise_name(name)
+        artist = matched_names_norm.get(norm)
+        lineup.append({
+            "name": name,
+            "artist": artist,
+            "is_matched": artist is not None,
+        })
+    # Sort: matched first
+    lineup.sort(key=lambda x: (not x["is_matched"], x["name"].lower()))
+
+    # Similar events: other events sharing 2+ matched artists
+    similar_events = []
+    if matched_artist_ids:
+        other_matches = session.exec(
+            select(Match).where(
+                Match.artist_id.in_(matched_artist_ids),
+                Match.event_id != event_id,
+            )
+        ).all()
+        # Group by event, count shared artists
+        event_shared: dict[int, set[int]] = {}
+        for m in other_matches:
+            event_shared.setdefault(m.event_id, set()).add(m.artist_id)
+        # Only events sharing 2+ artists (or 1 if few matches)
+        min_shared = 1 if len(matched_artist_ids) <= 2 else 2
+        similar_ids = [
+            eid for eid, aids in event_shared.items()
+            if len(aids) >= min_shared
+        ]
+        if similar_ids:
+            today = date.today()
+            similar_raw = session.exec(
+                select(Event).where(
+                    Event.id.in_(similar_ids),
+                    Event.date >= today,
+                )
+            ).all()
+            similar_events = [
+                {
+                    "event": e,
+                    "shared_count": len(event_shared[e.id]),
+                    "shared_names": [
+                        artists_by_id[aid].name
+                        for aid in event_shared[e.id]
+                        if aid in artists_by_id
+                    ],
+                }
+                for e in similar_raw
+            ]
+            similar_events.sort(key=lambda x: x["shared_count"], reverse=True)
+            similar_events = similar_events[:10]
+
+    return templates.TemplateResponse(
+        request,
+        "event_detail.html",
+        {
+            "event": event,
+            "sources": sources,
+            "lineup": lineup,
+            "breakdown_rows": breakdown_rows,
+            "event_score": event_score,
+            "similar_events": similar_events,
             "current_user": user,
         },
     )
