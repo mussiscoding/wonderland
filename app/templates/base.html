@@ -287,8 +287,8 @@
     <button class="hamburger-btn" onclick="document.getElementById('nav-overlay').classList.add('open')">&#9776;</button>
     <div id="nav-overlay" class="nav-overlay" onclick="if(event.target===this)this.classList.remove('open')">
         <div class="nav-panel">
-            <a href="/artists" onclick="document.getElementById('nav-overlay').classList.remove('open')">Artists</a>
             <a href="/events" onclick="document.getElementById('nav-overlay').classList.remove('open')">Events</a>
+            <a href="/artists" onclick="document.getElementById('nav-overlay').classList.remove('open')">Artists</a>
             <a href="/genres" onclick="document.getElementById('nav-overlay').classList.remove('open')">Genres</a>
             {% if current_user is defined and current_user and is_admin_user(current_user) %}
             <a href="/admin" onclick="document.getElementById('nav-overlay').classList.remove('open')">Admin</a>
@@ -309,8 +309,8 @@
         <p class="subtitle">find gigs you'll actually go to</p>
         {% block nav %}
         <nav class="desktop-nav">
-            <a href="/artists">Artists</a>
             <a href="/events">Events</a>
+            <a href="/artists">Artists</a>
             <a href="/genres">Genres</a>
             {% if current_user is defined and current_user and is_admin_user(current_user) %}
             <a href="/admin">Admin</a>
