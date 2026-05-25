@@ -94,6 +94,10 @@ def list_events(
     if not show_all:
         events = [e for e in events if event_scores.get(e.id, 0) > 0]
 
+    # Default to today if no date_from specified
+    if not date_from:
+        date_from = date.today().isoformat()
+
     # Date filter
     if date_from:
         try:
@@ -128,6 +132,24 @@ def list_events(
     else:
         events.sort(key=lambda e: e.date)
 
+    # Build event score breakdowns for tooltips
+    event_breakdowns: dict[int, dict] = {}
+    for event in events:
+        event_matches = matches_by_event.get(event.id, [])
+        rows = []
+        for m in event_matches:
+            contrib = round(m["effective_score"] * m["confidence"] / 100.0, 1)
+            rows.append({
+                "name": m["artist"].name,
+                "artist_id": m["artist"].id,
+                "contrib": contrib,
+            })
+        rows.sort(key=lambda r: r["contrib"], reverse=True)
+        event_breakdowns[event.id] = {
+            "rows": rows,
+            "total": event_scores.get(event.id, 0),
+        }
+
     return templates.TemplateResponse(
         request,
         "events.html",
@@ -135,6 +157,8 @@ def list_events(
             "events": events,
             "matches_by_event": matches_by_event,
             "sources_by_event": sources_by_event,
+            "event_scores": event_scores,
+            "event_breakdowns": event_breakdowns,
             "q": q,
             "sort": sort,
             "show_all": show_all,

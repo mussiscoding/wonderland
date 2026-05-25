@@ -45,6 +45,18 @@ def normalise_name(name: str) -> str:
     return s
 
 
+def _dedup_names(names: list[str]) -> list[str]:
+    """Deduplicate names by normalised form, keeping first occurrence."""
+    seen: set[str] = set()
+    result = []
+    for name in names:
+        norm = normalise_name(name)
+        if norm and norm not in seen:
+            result.append(name)
+            seen.add(norm)
+    return result
+
+
 def parse_lineup(lineup_raw: str) -> list[str]:
     """Parse a raw lineup string into individual artist names."""
     if not lineup_raw:
@@ -80,7 +92,7 @@ def parse_lineup(lineup_raw: str) -> list[str]:
         if normalised and normalised not in IGNORE_NAMES and len(normalised) > 1:
             names.append(name.strip())
 
-    return names
+    return _dedup_names(names)
 
 
 def run_matching(session: Session) -> dict:
@@ -107,13 +119,17 @@ def run_matching(session: Session) -> dict:
     for event in events:
         lineup_names = event.lineup_parsed or []
         if not lineup_names:
-            # Try parsing from raw if parsed is empty
             lineup_names = parse_lineup(event.lineup_raw)
-            if lineup_names and not event.lineup_parsed:
-                event.lineup_parsed = lineup_names
-                session.add(event)
+
+        # Dedup stored lineups (scrapers can produce case variants)
+        deduped = _dedup_names(lineup_names)
+        if deduped != lineup_names:
+            lineup_names = deduped
+            event.lineup_parsed = deduped
+            session.add(event)
 
         event_matched = False
+        matched_artist_ids: set[int] = set()
 
         for lineup_name in lineup_names:
             norm_lineup = normalise_name(lineup_name)
@@ -123,9 +139,11 @@ def run_matching(session: Session) -> dict:
             # Try exact match first (fast path)
             artist = artist_lookup.get(norm_lineup)
             if artist:
-                _add_match(session, artist, event, 100.0, "exact", lineup_name)
-                total_matches += 1
-                event_matched = True
+                if artist.id not in matched_artist_ids:
+                    _add_match(session, artist, event, 100.0, "exact", lineup_name)
+                    matched_artist_ids.add(artist.id)
+                    total_matches += 1
+                    event_matched = True
                 continue
 
             # Fuzzy match — skip for very short names (3 chars or fewer)
@@ -143,8 +161,9 @@ def run_matching(session: Session) -> dict:
                     best_score = score
                     best_artist = candidate
 
-            if best_score >= FUZZY_THRESHOLD and best_artist:
+            if best_score >= FUZZY_THRESHOLD and best_artist and best_artist.id not in matched_artist_ids:
                 _add_match(session, best_artist, event, best_score, "fuzzy", lineup_name)
+                matched_artist_ids.add(best_artist.id)
                 total_matches += 1
                 event_matched = True
 

@@ -92,15 +92,20 @@
 {% if events %}
 <table style="table-layout:fixed;">
     <colgroup>
-        <col style="width:70px;">
+        <col style="width:52px;">
+        <col style="width:74px;">
         <col>
         <col>
         <col>
-        <col class="hide-mobile" style="width:80px;">
         <col style="width:40px;">
     </colgroup>
     <thead>
         <tr>
+            <th style="white-space:nowrap;">
+                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
+                    Score{% if sort == 'score' %} ▼{% elif sort == 'score_asc' %} ▲{% endif %}
+                </a>
+            </th>
             <th style="white-space:nowrap;">
                 <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Date{% if sort == 'date' %} ▲{% elif sort == 'date_desc' %} ▼{% endif %}
@@ -109,7 +114,6 @@
             <th>Event</th>
             <th>Venue</th>
             <th>Lineup</th>
-            <th class="hide-mobile" style="width:1%;white-space:nowrap;">Price</th>
             <th style="width:1%;white-space:nowrap;text-align:center;">Links</th>
         </tr>
     </thead>
@@ -118,6 +122,30 @@
         {% set event_matches = matches_by_event.get(event.id, []) %}
         {% set matched_names = event_matches | map(attribute='matched_name') | map('lower') | list %}
         <tr>
+            {% set escore = event_scores.get(event.id, 0) %}
+            {% set ebd = event_breakdowns.get(event.id, {}) %}
+            <td>
+                {% if escore > 0 %}
+                <div class="score-tip">
+                    <span class="score {% if escore >= 50 %}score-high{% elif escore >= 30 %}score-med{% else %}score-low{% endif %}">
+                        {{ escore | round(0) | int }}
+                    </span>
+                    {% if ebd.rows %}
+                    <div class="tip-content" onclick="event.stopPropagation()">
+                        <div class="breakdown-rows">
+                        {% for row in ebd.rows %}
+                        <div class="breakdown-row"><span class="breakdown-pts">+{{ row.contrib | round(0) | int }}</span><span class="breakdown-label"><a href="/artist/{{ row.artist_id }}" style="color:#999;text-decoration:none;">{{ row.name }}</a></span></div>
+                        {% endfor %}
+                        <div class="breakdown-divider"></div>
+                        <div class="breakdown-row breakdown-total"><span class="breakdown-pts">{{ ebd.total | round(0) | int }}</span><span class="breakdown-label">event score</span></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <span class="score score-low">—</span>
+                {% endif %}
+            </td>
             <td style="white-space:nowrap;font-size:12px;">{{ event.date.strftime('%a %d/%m') }}</td>
             <td>{{ event.title }}</td>
             <td>{{ event.venue_name }}</td>
@@ -146,15 +174,6 @@
                 {% endfor %}
                 {% if ns.sorted | length > 6 %}
                 <span class="genre-tag" style="opacity:0.5;">+{{ ns.sorted | length - 6 }}</span>
-                {% endif %}
-            </td>
-            <td class="hide-mobile" style="white-space:nowrap;">
-                {% set sources = sources_by_event.get(event.id, []) %}
-                {% set prices = sources | selectattr('price') | map(attribute='price') | list %}
-                {% if prices %}
-                from {{ prices[0] }}
-                {% else %}
-                —
                 {% endif %}
             </td>
             <td style="text-align:center;">
