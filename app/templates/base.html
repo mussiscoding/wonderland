@@ -230,6 +230,24 @@
         .htmx-indicator { opacity: 0; transition: opacity 0.2s; }
         .htmx-request .htmx-indicator { opacity: 1; }
 
+        /* Fetch-complete toast */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; z-index: 300;
+            background: #1a1a1a; border: 1px solid #1db954; border-radius: 8px;
+            padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.5); max-width: 360px;
+            color: #e0e0e0; font-size: 14px;
+        }
+        .toast-msg { line-height: 1.4; }
+        .toast-close {
+            background: none; border: none; color: #888; cursor: pointer;
+            font-size: 20px; line-height: 1; padding: 0 2px;
+        }
+        .toast-close:hover { color: #1db954; }
+        @media (max-width: 600px) {
+            .toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+        }
+
         /* Mobile */
         @media (max-width: 600px) {
             .container { padding: 12px; padding-top: 56px; }
@@ -284,6 +302,14 @@
     </style>
 </head>
 <body>
+    {% if current_user is defined and current_user %}
+    {% set fn = fetch_notice(current_user) %}
+    {% if fn.state == 'running' %}
+    {% include "fetch_poller.html" %}
+    {% elif fn.state == 'toast' %}
+    {% with new_events=fn.new, updated_events=fn.updated, unchanged_events=fn.unchanged %}{% include "fetch_toast.html" %}{% endwith %}
+    {% endif %}
+    {% endif %}
     <button class="hamburger-btn" onclick="document.getElementById('nav-overlay').classList.add('open')">&#9776;</button>
     <div id="nav-overlay" class="nav-overlay" onclick="if(event.target===this)this.classList.remove('open')">
         <div class="nav-panel">

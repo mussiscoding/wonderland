@@ -36,6 +36,10 @@ def _get_event_progress(user_id: int) -> dict:
             "current": 0,
             "total": 0,
             "done": False,
+            "new_events": 0,
+            "updated_events": 0,
+            "unchanged_events": 0,
+            "acknowledged": True,
         }
     return event_progress[user_id]
 
@@ -65,6 +69,7 @@ def fetch_all_events(session: Session, user_id: int, cities: list[str] | None = 
 
     new_events = 0
     updated_events = 0
+    unchanged_events = 0
     total_fetched = 0
 
     for city_key in cities:
@@ -106,7 +111,9 @@ def fetch_all_events(session: Session, user_id: int, cities: list[str] | None = 
                         event.lineup_parsed = merged
                         event.lineup_raw = ", ".join(merged)
                         session.add(event)
-                    updated_events += 1
+                        updated_events += 1
+                    else:
+                        unchanged_events += 1
                 else:
                     event = Event(
                         title=raw["title"],
@@ -136,6 +143,7 @@ def fetch_all_events(session: Session, user_id: int, cities: list[str] | None = 
         "total_fetched": total_fetched,
         "new_events": new_events,
         "updated_events": updated_events,
+        "unchanged_events": unchanged_events,
     }
     logger.info(f"Event fetch complete: {summary}")
     return summary

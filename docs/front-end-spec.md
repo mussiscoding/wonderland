@@ -185,6 +185,12 @@ Genre data is per-user — each user has their own genre classifications via `Us
 - Auto-polls every 1 second for updates
 - Auto-redirects to events page when complete
 
+### Fetch-complete toast (admin only)
+- When an admin's event fetch finishes, a toast appears bottom-right: "Events fetch complete — X new, Y updated, Z unchanged" (new = first-seen events, updated = existing events whose lineup gained artists, unchanged = re-seen with no change)
+- Persists until manually dismissed via the × button; never auto-dismisses
+- Appears on whatever page the admin is on when the fetch completes, and re-appears on navigation until dismissed (driven by server-side per-user fetch state)
+- A hidden poller is rendered only while a fetch is running; it stops polling the moment the fetch completes (no idle polling). Non-admins never receive the poller or toast.
+
 ---
 
 ## Choose Profile (`/choose-profile`)

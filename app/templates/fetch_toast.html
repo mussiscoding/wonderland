@@ -1,0 +1,8 @@
+<div id="fetch-toast" class="toast">
+    <span class="toast-msg">Events fetch complete &mdash; {{ new_events }} new, {{ updated_events }} updated, {{ unchanged_events }} unchanged</span>
+    <button class="toast-close"
+            hx-post="/admin/fetch/notification/dismiss"
+            hx-target="#fetch-toast"
+            hx-swap="outerHTML"
+            aria-label="Dismiss">&times;</button>
+</div>
