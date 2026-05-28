@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://www.skiddle.com/api/v1"
 PAGE_SIZE = 100  # Skiddle max
+EVENT_CODES = "LIVE,CLUB,FEST"  # live music + club nights + festivals; OR union
 
 rate_limiter = RateLimiter(min_delay=1.0)
 
@@ -46,7 +47,7 @@ def fetch_events(city_config: dict, days: int = 60, progress: dict | None = None
             "latitude": skiddle_config["lat"],
             "longitude": skiddle_config["lon"],
             "radius": skiddle_config["radius"],
-            "eventcode": "CLUB",
+            "eventcode": EVENT_CODES,
             "minDate": min_date,
             "maxDate": max_date,
             "description": 1,

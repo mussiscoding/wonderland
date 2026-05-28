@@ -20,7 +20,10 @@ rate_limiter = RateLimiter(min_delay=1.0)
 
 
 def fetch_events(city_config: dict, days: int = 60, progress: dict | None = None) -> list[dict]:
-    """Fetch DJ/club events from DICE for the next N days.
+    """Fetch all events from DICE for the city.
+
+    DICE's type_tags filter only supports exact single-value matching, so we pull every
+    event type and let downstream artist matching filter to a user's library.
 
     Returns a list of normalised event dicts ready for storage.
     """
@@ -46,7 +49,6 @@ def fetch_events(city_config: dict, days: int = 60, progress: dict | None = None
             "page[size]": PAGE_SIZE,
             "page[number]": page,
             "filter[cities]": dice_city,
-            "filter[type_tags]": "music:dj",
         }
 
         try:

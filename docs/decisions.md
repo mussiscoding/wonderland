@@ -27,3 +27,7 @@ We scrape from 5 sources (RA, Dice, Skiddle, Ticketmaster, Eventbrite) because n
 ## Per-user data model via junction tables
 
 All artist scores and genre classifications are per-user, not global. `UserArtist` holds the per-user score and signal data for each artist. `UserGenreClassification` holds the per-user genre category assignments. This means two users can have completely different scores for the same artist and different genre weightings, which is the whole point — the app serves any music taste, not just one person's.
+
+## Scrapers pull broad, matching filters
+
+We let each source return as wide a set of events as practical and rely on downstream artist-matching + scoring to filter, rather than narrowing genres at each provider's API. Non-music and off-taste events score 0 (no lineup matches an imported artist) and are hidden by the default events view, so source-side filtering buys nothing and risks silently capping coverage. Concretely: Skiddle uses the `LIVE,CLUB,FEST` eventcode union (its API ORs comma-separated codes); DICE drops its `type_tags` filter entirely because that filter only supports exact single-value matching (`music`, `music:*`, and comma lists all return zero), so there's no way to widen it to "all music" — we take everything and let matching decide. This is the change that moved the app beyond dance-only. Trade-off accepted: we store more rows that never surface, and the `?show_all=1` view now includes non-music.
