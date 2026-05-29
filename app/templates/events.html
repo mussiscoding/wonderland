@@ -114,7 +114,6 @@
             <th>Event</th>
             <th>Venue</th>
             <th>Lineup</th>
-            <th style="width:1%;white-space:nowrap;text-align:center;">Links</th>
         </tr>
     </thead>
     <tbody>
@@ -175,22 +174,6 @@
                 {% if ns.sorted | length > 6 %}
                 <span class="genre-tag" style="opacity:0.5;">+{{ ns.sorted | length - 6 }}</span>
                 {% endif %}
-            </td>
-            <td style="text-align:center;">
-                {% set sources = sources_by_event.get(event.id, []) %}
-                {% for src in sources %}
-                    {% if src.source_url %}
-                    <a href="{{ src.source_url }}" target="_blank" class="source-icon" title="{{ src.source_name }}">
-                        {% if src.source_name == "ra" %}RA
-                        {% elif src.source_name == "dice" %}D
-                        {% elif src.source_name == "skiddle" %}SK
-                        {% elif src.source_name == "eventbrite" %}EB
-                        {% elif src.source_name == "ticketmaster" %}TM
-                        {% else %}{{ src.source_name[:2] | upper }}
-                        {% endif %}
-                    </a>
-                    {% endif %}
-                {% endfor %}
             </td>
         </tr>
         {% endfor %}

@@ -77,13 +77,14 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events. Preserves city filter.
 
 ### Table
-- Columns: Score, Date, Event, Venue, Lineup, Links
+- Columns: Score, Date, Event, Venue, Lineup
 - **Score**: event relevance score (sum of matched artist contributions). Colour-coded like artist scores. Hover tooltip shows breakdown of which artists contribute how many points. Sortable (▼/▲).
 - **Date header**: clickable, toggles between ascending (earliest first, ▲) and descending (▼)
 - **Date**: formatted as "Mon 01/06"
 - **Event title**: clickable, links to `/event/{id}` detail page
 - **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow. Matched artist pills link to `/artist/{id}`.
-- **Links**: buttons for each source (RA, Skiddle, Dice) linking to the event on that platform. Opens in new tab.
+
+Source links live on the `/event/{id}` detail page, reached via the event title.
 
 ### Empty state
 - No matched events: suggests showing all events or fetching new ones
