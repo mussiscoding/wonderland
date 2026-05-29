@@ -185,11 +185,14 @@ Genre data is per-user — each user has their own genre classifications via `Us
 - Auto-polls every 1 second for updates
 - Auto-redirects to events page when complete
 
-### Fetch-complete toast (admin only)
-- When an admin's event fetch finishes, a toast appears bottom-right: "Events fetch complete — X new, Y updated, Z unchanged" (new = first-seen events, updated = existing events whose lineup gained artists, unchanged = re-seen with no change)
-- Persists until manually dismissed via the × button; never auto-dismisses
-- Appears on whatever page the admin is on when the fetch completes, and re-appears on navigation until dismissed (driven by server-side per-user fetch state)
-- A hidden poller is rendered only while a fetch is running; it stops polling the moment the fetch completes (no idle polling). Non-admins never receive the poller or toast.
+### Sync notification toasts
+- A unified bottom-right toast stack surfaces background sync state, driven by server-side per-user progress (not the browser).
+- **Artists (all logged-in users)** — Spotify library sync: shows "Syncing your Spotify…" while running, then "Synced N artists — you match M upcoming events" on completion (M = upcoming matched-events count for that user).
+- **Events (admin only)** — event fetch: shows "Fetching events…" while running, then "Events fetch complete — X new, Y updated, Z unchanged" (new = first-seen, updated = existing events whose lineup gained artists, unchanged = re-seen with no change).
+- **Failures** show a dismissible error toast ("Library sync failed…" / "Event fetch failed…") rather than the running toast silently vanishing.
+- Running toasts have no close button (auto-replaced on completion); completion and error toasts persist until manually dismissed via × and never auto-dismiss.
+- Toasts appear on whatever page the user is on when a sync finishes, and re-appear on navigation until dismissed. If both an artists sync and an events fetch are active, both stack.
+- One poller serves the stack: it polls (every 2s) only while something is running and stops the moment everything is terminal — idle pages make zero requests. Non-admins never receive the events toast; logged-out users get nothing.
 
 ---
 

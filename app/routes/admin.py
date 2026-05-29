@@ -38,7 +38,8 @@ def _run_fetch_background(user_id: int, cities: list[str]):
             )
         except Exception as e:
             logger.error(f"Background event fetch failed: {e}")
-            progress.update(running=False, step=f"Error: {e}", done=False)
+            progress.update(running=False, step=f"Error: {e}", done=False,
+                            error=str(e), acknowledged=False)
 
 
 @router.get("/admin", response_class=HTMLResponse)
@@ -90,37 +91,6 @@ def _user_event_progress(user) -> dict:
         "new_events": 0, "updated_events": 0, "unchanged_events": 0, "acknowledged": True,
     }
     return _get_event_progress(user.id) if user else _EMPTY
-
-
-@router.get("/admin/fetch/notification", response_class=HTMLResponse)
-def fetch_notification(request: Request, session: Session = Depends(get_session)):
-    """Poll target: returns the re-arming poller while a fetch runs, the static toast
-    once it finishes (no trigger, so polling stops), or empty otherwise."""
-    user = get_current_user(request, session)
-    if not user or not is_admin_user(user):
-        return HTMLResponse("")
-    progress = _get_event_progress(user.id)
-    if progress.get("running"):
-        return templates.TemplateResponse(request, "fetch_poller.html", {})
-    if progress.get("done") and not progress.get("acknowledged", True):
-        return templates.TemplateResponse(
-            request,
-            "fetch_toast.html",
-            {
-                "new_events": progress.get("new_events", 0),
-                "updated_events": progress.get("updated_events", 0),
-                "unchanged_events": progress.get("unchanged_events", 0),
-            },
-        )
-    return HTMLResponse("")
-
-
-@router.post("/admin/fetch/notification/dismiss", response_class=HTMLResponse)
-def dismiss_fetch_notification(request: Request, session: Session = Depends(get_session)):
-    user = get_current_user(request, session)
-    if user and is_admin_user(user):
-        _get_event_progress(user.id)["acknowledged"] = True
-    return HTMLResponse("")
 
 
 @router.get("/admin/fetch/progress", response_class=HTMLResponse)

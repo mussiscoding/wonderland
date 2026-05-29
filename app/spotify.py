@@ -35,6 +35,10 @@ def _get_progress(user_id: int) -> dict:
             "current": 0,
             "total": 0,
             "done": False,
+            "acknowledged": True,
+            "total_artists": 0,
+            "matched_events": 0,
+            "error": None,
         }
     return import_progress[user_id]
 
@@ -46,7 +50,7 @@ def import_all_artists(sp: spotipy.Spotify, session: Session, user_id: int) -> d
     Returns a summary dict with counts.
     """
     progress = _get_progress(user_id)
-    progress.update(running=True, step="", current=0, total=0, done=False)
+    progress.update(running=True, step="", current=0, total=0, done=False, error=None)
 
     # Collect signals per artist: spotify_id -> {name, genres, signals}
     artist_data: dict[str, dict] = {}
@@ -374,7 +378,7 @@ def backfill_lastfm(session: Session, user_id: int):
     ).all()
     artist_ids = [ua.artist_id for ua in user_artists]
     if not artist_ids:
-        progress.update(running=False, step="No artists to backfill", done=True)
+        progress.update(running=False, step="No artists to backfill", done=True, acknowledged=True)
         return
 
     artists = session.exec(
@@ -390,7 +394,7 @@ def backfill_lastfm(session: Session, user_id: int):
 
     if not missing:
         logger.info("No artists missing genres.")
-        progress.update(running=False, step="No artists missing genres", done=True)
+        progress.update(running=False, step="No artists missing genres", done=True, acknowledged=True)
         return
 
     # Build artist_data dict and existing_by_sid for reuse
@@ -405,7 +409,7 @@ def backfill_lastfm(session: Session, user_id: int):
     }
     existing_by_sid = {a.spotify_id: a for a in missing}
 
-    progress.update(running=True, step="", current=0, total=0, done=False)
+    progress.update(running=True, step="", current=0, total=0, done=False, error=None)
     _backfill_genres_lastfm(
         [a.spotify_id for a in missing],
         artist_data, session, existing_by_sid, progress,
@@ -430,7 +434,7 @@ def backfill_lastfm(session: Session, user_id: int):
                 session.add(ua)
 
     session.commit()
-    progress.update(running=False, step="Done", done=True)
+    progress.update(running=False, step="Done", done=True, acknowledged=True)
 
 
 def _backfill_genres_lastfm(

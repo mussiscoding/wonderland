@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.auth import get_current_user, get_spotify_client
 from app.database import get_session, engine
 from app.models import Artist, ArtistGenre, Event, EventSource, Match, UserArtist
+from app.routes.events import count_user_matched_events
 from app.scoring import get_genre_map, user_has_genres, score_breakdown
 from app.spotify import import_all_artists, import_progress, _get_progress, backfill_lastfm
 from app.templating import templates
@@ -29,10 +30,17 @@ def _run_import_background(sp, user_id: int):
     progress = _get_progress(user_id)
     with Session(engine) as session:
         try:
-            import_all_artists(sp, session, user_id)
+            summary = import_all_artists(sp, session, user_id)
+            progress.update(
+                total_artists=summary["total_artists"],
+                matched_events=count_user_matched_events(session, user_id),
+                acknowledged=False,
+                error=None,
+            )
         except Exception as e:
             logger.error(f"Background import failed: {e}")
-            progress.update(running=False, step=f"Error: {e}", done=False)
+            progress.update(running=False, step=f"Error: {e}", done=False,
+                            error=str(e), acknowledged=False)
 
 
 @router.post("/import")
@@ -113,7 +121,7 @@ def run_lastfm_backfill(request: Request, session: Session = Depends(get_session
 
     progress = _get_progress(user.id)
     if not progress["running"]:
-        progress.update(running=True, step="Starting Last.fm backfill...", current=0, total=0, done=False)
+        progress.update(running=True, step="Starting Last.fm backfill...", current=0, total=0, done=False, error=None)
 
         uid = user.id
         def _run():
@@ -122,7 +130,8 @@ def run_lastfm_backfill(request: Request, session: Session = Depends(get_session
                     backfill_lastfm(bg_session, uid)
                 except Exception as e:
                     logger.error(f"Last.fm backfill failed: {e}")
-                    _get_progress(uid).update(running=False, step=f"Error: {e}", done=False)
+                    _get_progress(uid).update(running=False, step=f"Error: {e}", done=False,
+                                              error=str(e), acknowledged=False)
 
         threading.Thread(target=_run, daemon=True).start()
 

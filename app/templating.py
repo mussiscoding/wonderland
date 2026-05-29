@@ -21,30 +21,59 @@ def is_admin_user(user) -> bool:
     return user.spotify_id in _get_admin_ids()
 
 
-def fetch_notice(user) -> dict:
-    """Render-time state for the fetch-complete toast (admin only).
+_RUNNING_MSG = {"artists": "Syncing your Spotify…", "events": "Fetching events…"}
+_ERROR_MSG = {
+    "artists": "Library sync failed — please try again",
+    "events": "Event fetch failed — please try again",
+}
 
-    Returns {"state": "running"} while a fetch runs, {"state": "toast", "new", "updated"}
-    when one finished and hasn't been dismissed, else {"state": ""}.
-    """
-    if not is_admin_user(user):
-        return {"state": ""}
-    from app.events import event_progress
 
-    p = event_progress.get(user.id)
+def _done_message(p: dict, kind: str) -> str:
+    if kind == "artists":
+        return (
+            f"Synced {p.get('total_artists', 0)} artists "
+            f"— you match {p.get('matched_events', 0)} upcoming events"
+        )
+    return (
+        f"Events fetch complete — {p.get('new_events', 0)} new, "
+        f"{p.get('updated_events', 0)} updated, {p.get('unchanged_events', 0)} unchanged"
+    )
+
+
+def _notice_from(p: dict | None, kind: str) -> dict | None:
+    """Build a notice dict {kind, state, message} from a progress dict, or None."""
     if not p:
-        return {"state": ""}
+        return None
     if p.get("running"):
-        return {"state": "running"}
-    if p.get("done") and not p.get("acknowledged", True):
-        return {
-            "state": "toast",
-            "new": p.get("new_events", 0),
-            "updated": p.get("updated_events", 0),
-            "unchanged": p.get("unchanged_events", 0),
-        }
-    return {"state": ""}
+        return {"kind": kind, "state": "running", "message": _RUNNING_MSG[kind]}
+    if not p.get("acknowledged", True):
+        if p.get("error"):
+            return {"kind": kind, "state": "error", "message": _ERROR_MSG[kind]}
+        if p.get("done"):
+            return {"kind": kind, "state": "done", "message": _done_message(p, kind)}
+    return None
+
+
+def notifications(user) -> list[dict]:
+    """Active sync notices for this user: artists (all users) + events (admin only).
+
+    Each notice is {"kind": "artists"|"events", "state": "running"|"done"|"error", ...}.
+    """
+    if not user:
+        return []
+    from app.events import event_progress
+    from app.spotify import import_progress
+
+    notices = []
+    artists = _notice_from(import_progress.get(user.id), "artists")
+    if artists:
+        notices.append(artists)
+    if is_admin_user(user):
+        events = _notice_from(event_progress.get(user.id), "events")
+        if events:
+            notices.append(events)
+    return notices
 
 
 templates.env.globals["is_admin_user"] = is_admin_user
-templates.env.globals["fetch_notice"] = fetch_notice
+templates.env.globals["notifications"] = notifications

@@ -40,6 +40,7 @@ def _get_event_progress(user_id: int) -> dict:
             "updated_events": 0,
             "unchanged_events": 0,
             "acknowledged": True,
+            "error": None,
         }
     return event_progress[user_id]
 
@@ -62,7 +63,7 @@ def fetch_all_events(session: Session, user_id: int, cities: list[str] | None = 
         cities = ["london"]
 
     progress = _get_event_progress(user_id)
-    progress.update(running=True, step="Fetching events...", current=0, total=0, done=False)
+    progress.update(running=True, step="Fetching events...", current=0, total=0, done=False, error=None)
 
     # Load existing events for dedup
     existing_events = {e.dedupe_key: e for e in session.exec(select(Event)).all()}

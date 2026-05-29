@@ -1,0 +1,13 @@
+{% set any_running = notices | selectattr('state', 'equalto', 'running') | list | length > 0 %}
+<div id="notifications" class="toast-stack"
+     {% if any_running %}hx-get="/notifications" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+    {% for n in notices %}
+    <div class="toast{% if n.state == 'running' %} toast-running{% elif n.state == 'error' %} toast-error{% endif %}">
+        <span class="toast-msg">{{ n.message }}</span>
+        {% if n.state != 'running' %}
+        <button class="toast-close" hx-post="/notifications/dismiss?kind={{ n.kind }}"
+                hx-target="#notifications" hx-swap="outerHTML" aria-label="Dismiss">&times;</button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>

@@ -18,6 +18,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def user_event_scores(session: Session, user_id: int) -> dict[int, float]:
+    """Map event_id -> event score for this user (only events with qualifying matches)."""
+    user_artists = session.exec(
+        select(UserArtist).where(UserArtist.user_id == user_id)
+    ).all()
+    ua_by_artist_id = {ua.artist_id: ua for ua in user_artists}
+
+    pairs_by_event: dict[int, list] = {}
+    for m in session.exec(select(Match)).all():
+        ua = ua_by_artist_id.get(m.artist_id)
+        if not ua or ua.excluded:
+            continue
+        pairs_by_event.setdefault(m.event_id, []).append((ua.effective_score, m.confidence))
+
+    return {eid: compute_event_score(pairs) for eid, pairs in pairs_by_event.items()}
+
+
+def count_user_matched_events(session: Session, user_id: int) -> int:
+    """Count upcoming events (today onward) that match this user's library."""
+    scores = user_event_scores(session, user_id)
+    matched_ids = [eid for eid, s in scores.items() if s > 0]
+    if not matched_ids:
+        return 0
+    today = date.today()
+    events = session.exec(select(Event).where(Event.id.in_(matched_ids))).all()
+    return sum(1 for e in events if e.date.date() >= today)
+
+
 @router.get("/events", response_class=HTMLResponse)
 def list_events(
     request: Request,
@@ -76,15 +104,11 @@ def list_events(
             "matched_name": m.matched_name,
         })
 
-    # Compute event scores for sorting and filtering
-    event_scores: dict[int, float] = {}
-    for event in events:
-        event_matches = matches_by_event.get(event.id, [])
-        matched_pairs = [
-            (m["effective_score"], m["confidence"])
-            for m in event_matches
-        ]
-        event_scores[event.id] = compute_event_score(matched_pairs)
+    # Compute event scores for sorting and filtering (reuse matches already loaded above)
+    event_scores = {
+        eid: compute_event_score([(m["effective_score"], m["confidence"]) for m in ms])
+        for eid, ms in matches_by_event.items()
+    }
 
     # Load sources
     sources_by_event = {}

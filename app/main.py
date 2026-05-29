@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 from app.database import init_db
 from app.migration import run_migration
-from app.routes import admin, auth, artists, events, genres
+from app.routes import admin, auth, artists, events, genres, notifications
 
 
 @asynccontextmanager
@@ -36,6 +36,7 @@ app.include_router(auth.router)
 app.include_router(artists.router)
 app.include_router(events.router)
 app.include_router(genres.router)
+app.include_router(notifications.router)
 
 
 @app.get("/")
