@@ -19,3 +19,7 @@ Read `docs/working-with-me.md` before starting any work.
 | `docs/plans/` | Starting a new feature | Planning or completing features |
 | `docs/ideas/` | Looking for what to work on next | New idea, or move to `done/` when completed |
 | `docs/known-issues/` | Investigating a bug or quirk | Discovering or resolving an issue |
+
+## Host access (maintainer-only)
+
+The maintainer keeps host/SSH details in `../SERVER.md`, a personal file living one level above this repo on their machine. It's not part of the project and won't exist for collaborators or CI — ignore this section if that file isn't present.
