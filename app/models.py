@@ -96,6 +96,22 @@ class UserGenreClassification(SQLModel, table=True):
     )
 
 
+class UserEvent(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_id", name="uq_user_event"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    event_id: int = Field(foreign_key="event.id", index=True)
+    status: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column_kwargs={"onupdate": _utcnow},
+    )
+
+
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str

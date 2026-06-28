@@ -1,14 +1,14 @@
 import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from app.auth import get_current_user
 from app.cities import CITY_CONFIG
 from app.database import get_session
-from app.models import Artist, Event, EventSource, Match, UserArtist
+from app.models import Artist, Event, EventSource, Match, UserArtist, UserEvent
 from app.matching import normalise_name
 from app.scoring import compute_event_score
 from app.templating import templates
@@ -50,8 +50,9 @@ def count_user_matched_events(session: Session, user_id: int) -> int:
 def list_events(
     request: Request,
     q: str = "",
-    sort: str = "score",
-    show_all: str = "",
+    sort: str = "",
+    show_all: str = "",  # legacy: aliased to view=all
+    view: str = "",
     date_from: str = "",
     date_to: str = "",
     city: str = "london",
@@ -60,6 +61,20 @@ def list_events(
     user = get_current_user(request, session)
     if not user:
         return RedirectResponse("/login", status_code=303)
+
+    # Resolve view (back-compat: show_all=1 → view=all; default → mine)
+    if not view:
+        view = "all" if show_all else "mine"
+    if view not in ("mine", "saved", "all"):
+        view = "mine"
+    # Default sort flips to date for saved view; score for the others
+    if not sort:
+        sort = "date" if view == "saved" else "score"
+
+    # Load this user's saved event IDs (used by view=saved filter + row stripes)
+    saved_event_ids: set[int] = set(session.exec(
+        select(UserEvent.event_id).where(UserEvent.user_id == user.id)
+    ).all())
 
     # Filter events by city
     if city == "all":
@@ -115,9 +130,12 @@ def list_events(
     for s in session.exec(select(EventSource)).all():
         sources_by_event.setdefault(s.event_id, []).append(s)
 
-    # Filter to matched events unless show_all
-    if not show_all:
+    # View filter
+    if view == "mine":
         events = [e for e in events if event_scores.get(e.id, 0) > 0]
+    elif view == "saved":
+        events = [e for e in events if e.id in saved_event_ids]
+    # view == "all": no additional filter
 
     # Default to today if no date_from specified
     if not date_from:
@@ -175,6 +193,18 @@ def list_events(
             "total": event_scores.get(event.id, 0),
         }
 
+    # Empty-state distinguishers for the Saved view
+    saved_total = len(saved_event_ids)
+    saved_upcoming_total = 0
+    if view == "saved" and saved_total and not events:
+        today_d = date.today()
+        saved_upcoming_total = sum(
+            1 for e in session.exec(
+                select(Event).where(Event.id.in_(saved_event_ids))
+            ).all()
+            if e.date.date() >= today_d
+        )
+
     return templates.TemplateResponse(
         request,
         "events.html",
@@ -184,10 +214,13 @@ def list_events(
             "sources_by_event": sources_by_event,
             "event_scores": event_scores,
             "event_breakdowns": event_breakdowns,
+            "saved_event_ids": saved_event_ids,
             "q": q,
             "sort": sort,
-            "show_all": show_all,
+            "view": view,
             "total_count": len(events),
+            "saved_total": saved_total,
+            "saved_upcoming_total": saved_upcoming_total,
             "date_from": date_from,
             "date_to": date_to,
             "city": city,
@@ -210,6 +243,13 @@ def show_event(
     event = session.get(Event, event_id)
     if not event:
         return RedirectResponse("/events", status_code=303)
+
+    # Saved state for this event (drives the star button) + the user's full saved
+    # set (used to stripe rows in the Similar events table below).
+    saved_event_ids: set[int] = set(session.exec(
+        select(UserEvent.event_id).where(UserEvent.user_id == user.id)
+    ).all())
+    is_saved = event_id in saved_event_ids
 
     # Load sources for this event
     sources = session.exec(
@@ -346,6 +386,79 @@ def show_event(
             "breakdown_rows": breakdown_rows,
             "event_score": event_score,
             "similar_events": similar_events,
+            "is_saved": is_saved,
+            "saved_event_ids": saved_event_ids,
             "current_user": user,
         },
     )
+
+
+def _login_redirect(request: Request):
+    """Redirect to /login, using HX-Redirect for HTMX requests so the browser navigates."""
+    if request.headers.get("HX-Request"):
+        resp = Response(status_code=204)
+        resp.headers["HX-Redirect"] = "/login"
+        return resp
+    return RedirectResponse("/login", status_code=303)
+
+
+def _render_save_button(request: Request, event: Event, is_saved: bool):
+    return templates.TemplateResponse(
+        request,
+        "_save_button.html",
+        {"event": event, "is_saved": is_saved},
+    )
+
+
+@router.post("/event/{event_id}/save", response_class=HTMLResponse)
+def save_event(
+    event_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return _login_redirect(request)
+
+    event = session.get(Event, event_id)
+    if not event:
+        return RedirectResponse("/events", status_code=303)
+
+    existing = session.exec(
+        select(UserEvent).where(
+            UserEvent.user_id == user.id,
+            UserEvent.event_id == event_id,
+        )
+    ).first()
+    if not existing:
+        session.add(UserEvent(user_id=user.id, event_id=event_id))
+        session.commit()
+
+    return _render_save_button(request, event, is_saved=True)
+
+
+@router.post("/event/{event_id}/unsave", response_class=HTMLResponse)
+def unsave_event(
+    event_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request, session)
+    if not user:
+        return _login_redirect(request)
+
+    event = session.get(Event, event_id)
+    if not event:
+        return RedirectResponse("/events", status_code=303)
+
+    existing = session.exec(
+        select(UserEvent).where(
+            UserEvent.user_id == user.id,
+            UserEvent.event_id == event_id,
+        )
+    ).first()
+    if existing:
+        session.delete(existing)
+        session.commit()
+
+    return _render_save_button(request, event, is_saved=False)

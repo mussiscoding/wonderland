@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from app.auth import get_current_user, get_spotify_client
 from app.database import get_session, engine
-from app.models import Artist, ArtistGenre, Event, EventSource, Match, UserArtist
+from app.models import Artist, ArtistGenre, Event, EventSource, Match, UserArtist, UserEvent
 from app.routes.events import count_user_matched_events
 from app.scoring import get_genre_map, user_has_genres, score_breakdown
 from app.spotify import import_all_artists, import_progress, _get_progress, backfill_lastfm
@@ -191,6 +191,16 @@ def show_artist(
             sources_by_event.setdefault(src.event_id, []).append(src)
     match_by_event = {m.event_id: m for m in matches}
 
+    # Saved-event stripes for the events table
+    saved_event_ids: set[int] = set()
+    if event_ids:
+        saved_event_ids = set(session.exec(
+            select(UserEvent.event_id).where(
+                UserEvent.user_id == user.id,
+                UserEvent.event_id.in_(event_ids),
+            )
+        ).all())
+
     genre_map = get_genre_map(session, user.id)
     breakdown = score_breakdown(
         user_artist.source_signals or {}, artist_genres, genre_map
@@ -209,6 +219,7 @@ def show_artist(
             "events": events,
             "match_by_event": match_by_event,
             "sources_by_event": sources_by_event,
+            "saved_event_ids": saved_event_ids,
         },
     )
 
