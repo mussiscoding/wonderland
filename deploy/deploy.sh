@@ -49,14 +49,21 @@ ssh -i "$SSH_KEY" "$SSH_HOST" "
 "
 
 cyan "==> Verifying"
-sleep 1
-code=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL")
-printf '  %s  %s\n' "$code" "$HEALTH_URL"
 # Healthy = 307 (redirect to /login) on an unauthenticated request. Treat any
-# 2xx/3xx as live; anything else is a failed deploy.
+# 2xx/3xx as live. Retry briefly: Caddy can briefly 502 while reconnecting to
+# the freshly-restarted upstream.
+code=""
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL")
+  case "$code" in
+    2*|3*) break ;;
+  esac
+  sleep 1
+done
+printf '  %s  %s\n' "$code" "$HEALTH_URL"
 case "$code" in
   2*|3*) ;;
-  *) red "Health check returned $code"; exit 1 ;;
+  *) red "Health check returned $code after 10s of retries"; exit 1 ;;
 esac
 
 REMOTE_SHA=$(ssh -i "$SSH_KEY" "$SSH_HOST" "sudo -u deploy git -C $SERVER_PATH rev-parse HEAD")
