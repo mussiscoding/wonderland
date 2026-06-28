@@ -13,6 +13,10 @@
             {% if event.venue_location %}&middot; {{ event.venue_location }}{% endif %}
         </p>
 
+        <div style="margin-bottom:24px;">
+            {% include "_save_button.html" %}
+        </div>
+
         {% if sources %}
         <h3 style="font-size:14px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Tickets</h3>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;">
@@ -86,7 +90,7 @@
     </thead>
     <tbody>
         {% for sim in similar_events %}
-        <tr>
+        <tr{% if sim.event.id in saved_event_ids %} class="saved" aria-label="Saved event"{% endif %}>
             <td style="white-space:nowrap;font-size:12px;">{{ sim.event.date.strftime('%a %d/%m') }}</td>
             <td><a href="/event/{{ sim.event.id }}">{{ sim.event.title }}</a></td>
             <td>{{ sim.event.venue_name }}</td>

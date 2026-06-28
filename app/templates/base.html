@@ -125,6 +125,11 @@
         .score-med { color: #f0b429; }
         .score-low { color: #666; }
 
+        /* Saved-event marker: left-edge stripe on first cell, no layout shift */
+        tr.saved td:first-child { box-shadow: inset 3px 0 0 #1db954; }
+        .btn-saved { background: #1db954; color: #000; border-color: #1db954; }
+        .btn-saved:hover { background: #1ed760; border-color: #1ed760; color: #000; }
+
         .genre-tags-wrap {
             display: flex; flex-wrap: wrap; overflow: hidden;
         }

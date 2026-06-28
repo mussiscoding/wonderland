@@ -1,0 +1,14 @@
+<form id="save-btn"
+      hx-post="{{ '/event/' ~ event.id ~ ('/unsave' if is_saved else '/save') }}"
+      hx-target="#save-btn"
+      hx-swap="outerHTML"
+      hx-disabled-elt="this"
+      method="post" style="display:inline;">
+  <button type="submit"
+          class="btn{% if is_saved %} btn-saved{% endif %}"
+          aria-pressed="{{ 'true' if is_saved else 'false' }}"
+          aria-label="{{ 'Saved — click to remove' if is_saved else 'Save event' }}"
+          style="font-size:13px;padding:6px 14px;">
+    {% if is_saved %}★ Saved{% else %}☆ Save{% endif %}
+  </button>
+</form>

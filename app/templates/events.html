@@ -7,15 +7,18 @@
           method="get" action="/events" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
         <input type="hidden" name="sort" value="{{ sort }}">
-        {% if show_all %}
-        <input type="hidden" name="show_all" value="1">
-        {% endif %}
 
         <select name="city" class="filter-pill" style="width:auto;">
             {% for key, cfg in city_options.items() %}
             <option value="{{ key }}" {% if city == key %}selected{% endif %}>{{ cfg.label }}</option>
             {% endfor %}
             <option value="all" {% if city == 'all' %}selected{% endif %}>All cities</option>
+        </select>
+
+        <select name="view" class="filter-pill" style="width:auto;">
+            <option value="mine"  {% if view == 'mine'  %}selected{% endif %}>My artists</option>
+            <option value="saved" {% if view == 'saved' %}selected{% endif %}>Saved</option>
+            <option value="all"   {% if view == 'all'   %}selected{% endif %}>All events</option>
         </select>
 
         {# Mobile: date button that opens dropdown #}
@@ -42,15 +45,6 @@
             <input type="date" class="date-sync" data-target="date_to" value="{{ date_to }}" style="width:140px;" title="To date">
         </span>
 
-        {# Mobile: toggle inline with city + dates button #}
-        <span class="mobile-only" style="margin-left:auto;">
-            <div class="toggle-wrap">
-                <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                   class="toggle-opt {% if not show_all %}active{% endif %}">My artists</a>
-                <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}&show_all=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                   class="toggle-opt {% if show_all %}active{% endif %}">All events</a>
-            </div>
-        </span>
     </form>
 </div>
 
@@ -61,12 +55,6 @@
     <button type="button" class="btn-tiny date-preset" data-preset="week" onclick="setDateRange('week')">This week</button>
     <button type="button" class="btn-tiny date-preset" data-preset="month" onclick="setDateRange('month')">This month</button>
     <button type="button" class="btn-tiny date-preset" data-preset="clear" onclick="setDateRange('clear')">All time</button>
-    <div class="toggle-wrap" style="margin-left:auto;">
-        <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-           class="toggle-opt {% if not show_all %}active{% endif %}">My artists</a>
-        <a href="/events?q={{ q }}&city={{ city }}&sort={{ sort }}&show_all=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-           class="toggle-opt {% if show_all %}active{% endif %}">All events</a>
-    </div>
 </div>
 
 {# Mobile: date picker dropdown (hidden until tapped) #}
@@ -102,12 +90,12 @@
     <thead>
         <tr>
             <th style="white-space:nowrap;">
-                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
+                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'score' %}score_asc{% else %}score{% endif %}&view={{ view }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Score{% if sort == 'score' %} ▼{% elif sort == 'score_asc' %} ▲{% endif %}
                 </a>
             </th>
             <th style="white-space:nowrap;">
-                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}{% if show_all %}&show_all=1{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
+                <a href="/events?q={{ q }}&city={{ city }}&sort={% if sort == 'date' %}date_desc{% else %}date{% endif %}&view={{ view }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="sortable">
                     Date{% if sort == 'date' %} ▲{% elif sort == 'date_desc' %} ▼{% endif %}
                 </a>
             </th>
@@ -120,7 +108,7 @@
         {% for event in events %}
         {% set event_matches = matches_by_event.get(event.id, []) %}
         {% set matched_names = event_matches | map(attribute='matched_name') | map('lower') | list %}
-        <tr>
+        <tr{% if event.id in saved_event_ids %} class="saved" aria-label="Saved event"{% endif %}>
             {% set escore = event_scores.get(event.id, 0) %}
             {% set ebd = event_breakdowns.get(event.id, {}) %}
             <td>
@@ -181,11 +169,23 @@
 </table>
 {% else %}
 <div class="empty-state">
-    <h2>No events found</h2>
-    {% if not show_all %}
-    <p>No matched events yet. <a href="/events?city={{ city }}&show_all=1" style="color:#1db954;">Show all events</a> or <a href="/admin" style="color:#1db954;">fetch new events</a>.</p>
+    {% if view == 'saved' %}
+        {% if saved_total == 0 %}
+        <h2>No saved events yet</h2>
+        <p>Open an event and tap the star to save it. <a href="/events?view=mine" style="color:#1db954;">Back to discovery</a>.</p>
+        {% elif saved_upcoming_total == 0 %}
+        <h2>All your saved events have passed</h2>
+        <p><a href="/events?view=mine" style="color:#1db954;">Browse upcoming events</a>.</p>
+        {% else %}
+        <h2>No saved events match these filters</h2>
+        <p><a href="/events?view=saved" style="color:#1db954;">Clear filters</a>.</p>
+        {% endif %}
+    {% elif view == 'mine' %}
+        <h2>No events found</h2>
+        <p>No matched events yet. <a href="/events?city={{ city }}&view=all" style="color:#1db954;">Show all events</a> or <a href="/admin" style="color:#1db954;">fetch new events</a>.</p>
     {% else %}
-    <p>No events found. <a href="/admin" style="color:#1db954;">Fetch events</a> from the Admin page.</p>
+        <h2>No events found</h2>
+        <p>No events found. <a href="/admin" style="color:#1db954;">Fetch events</a> from the Admin page.</p>
     {% endif %}
 </div>
 {% endif %}

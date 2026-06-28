@@ -93,7 +93,7 @@
     </thead>
     <tbody>
         {% for event in events %}
-        <tr>
+        <tr{% if event.id in saved_event_ids %} class="saved" aria-label="Saved event"{% endif %}>
             <td style="white-space:nowrap;">{{ event.date.strftime('%a %d %b') }}</td>
             <td>{{ event.title }}</td>
             <td>{{ event.venue_name }}</td>
