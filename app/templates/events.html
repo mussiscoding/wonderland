@@ -2,7 +2,7 @@
 {% block content %}
 <div class="controls">
     <form id="events-form" hx-get="/events" hx-target="#event-results" hx-select="#event-results" hx-swap="outerHTML"
-          hx-trigger="input changed delay:300ms from:find input, change from:find input[name='date_from'], change from:find input[name='date_to'], change from:find select, input changed delay:300ms from:find select, submit"
+          hx-trigger="input changed delay:300ms from:find input, change from:find input[name='date_from'], change from:find input[name='date_to'], change from:find select[name='city'], change from:find select[name='view'], submit"
           hx-push-url="true"
           method="get" action="/events" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <input type="text" name="q" value="{{ q }}" placeholder="Search events, venues, artists...">
