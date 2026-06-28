@@ -62,7 +62,7 @@ Describes the desired user interactions and page responses across all pages. Imp
 ### Content (top to bottom)
 1. Single-row table with: Score, Artist name, Genre tags, Signals (same format as artist list). Score shows "manual"/"excluded" labels when applicable.
 2. **Manual score controls**: "Score manually" button (opens modal) + "Exclude artist" checkbox. "Clear manual score" available in modal when a manual score is set.
-3. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, City, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none.
+3. **Events section**: table of all events where this artist has a match. Columns: Date, Event, Venue, City, Price, Links. Sorted by date ascending. Shows "No upcoming events found for this artist." if none. Rows for events the user has saved render with a left-edge green stripe on the date cell (see Events page for details).
 4. Embedded Spotify artist player widget (iframe) + link to open in Spotify
 
 ---
@@ -74,7 +74,8 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **City dropdown**: filters events by city (London / Berlin / All cities). Part of the main form — updates live via htmx. Default is London. URL param: `?city=london|berlin|all`.
 - **Date range**: two native date inputs (from/to) that filter events by date. Part of the main form — updates live via htmx like search.
 - **Quick date buttons**: "Tonight", "This weekend", "This week", "This month", "All dates" — clicking one sets the date range inputs and triggers the filter. Pure client-side JS, no separate server logic.
-- **Show all / Matched only toggle**: switches between showing only events with matched artists vs all events. Preserves city filter.
+- **View dropdown**: filters the list to one of three views — `My artists` (default; only events with matched artists), `Saved` (only events the user has saved via the star on `/event/{id}`), or `All events`. Part of the main form — updates live via htmx. URL param: `?view=mine|saved|all`. Legacy `?show_all=1` URLs still work and alias to `view=all`.
+- **Default sort**: `Saved` view defaults to date ascending (chronological shortlist). Other views default to score descending.
 
 ### Table
 - Columns: Score, Date, Event, Venue, Lineup
@@ -83,12 +84,16 @@ Describes the desired user interactions and page responses across all pages. Imp
 - **Date**: formatted as "Mon 01/06"
 - **Event title**: clickable, links to `/event/{id}` detail page
 - **Lineup**: all artists as pills — matched artists highlighted in green (sorted first), others in grey. Capped at 6 with "+N" overflow. Matched artist pills link to `/artist/{id}`.
+- **Saved-event indicator**: rows for events the user has saved render with a left-edge green stripe on the score cell (the row's first column). No extra column is added; the marker uses the row's existing vertical space via an inset box-shadow so it never shifts layout. Rows also carry `aria-label="Saved event"` for screen readers.
 
 Source links live on the `/event/{id}` detail page, reached via the event title.
 
 ### Empty state
-- No matched events: suggests showing all events or fetching new ones
-- No events at all: prompts to fetch events
+- **No matched events** (`view=mine`): suggests showing all events or fetching new ones.
+- **No events at all** (`view=all`): prompts to fetch events from the Admin page.
+- **No saved events yet** (`view=saved`, no saves anywhere): prompts to open an event and tap the star.
+- **All your saved events have passed** (`view=saved`, saves exist but all in the past): links back to upcoming-event discovery.
+- **No saved events match these filters** (`view=saved`, saves exist and upcoming but excluded by current city/date/search): offers a "Clear filters" link.
 
 ---
 
@@ -99,6 +104,13 @@ Source links live on the `/event/{id}` detail page, reached via the event title.
 
 ### Header
 - Event title, date (full format: "Friday 05 June 2026"), venue name, city
+
+### Save
+- A single Save / Saved toggle button sits between the header and the Tickets section.
+- Unsaved state: outlined `☆ Save` button. Saved state: filled green `★ Saved` button.
+- Clicking toggles state via htmx (POST to `/event/{id}/save` or `/event/{id}/unsave`); only the button itself swaps — no page reload. The button is disabled mid-request to prevent double-submission.
+- Carries `aria-pressed` + a label that switches between "Save event" and "Saved — click to remove".
+- Saving is strictly private and per-user. Logged-out users never see the button (the page redirects to login). If the session expires mid-session, the route returns `HX-Redirect: /login` so the browser navigates rather than leaving the button in a half-toggled state.
 
 ### Tickets
 - Buttons for each source (Resident Advisor, Dice, Skiddle, etc.) linking to the event page
@@ -125,6 +137,7 @@ Source links live on the `/event/{id}` detail page, reached via the event title.
 - Columns: Date, Event (linked), Venue, Shared artists (as green pills)
 - Requires 2+ shared artists (or 1 if the event has ≤2 matched artists)
 - Limited to future events, sorted by shared count descending, max 10
+- Rows for events the user has saved render with the same left-edge green stripe as the Events list.
 
 ---
 

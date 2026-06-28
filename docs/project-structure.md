@@ -5,7 +5,7 @@ app/
   main.py           - FastAPI app, lifespan (init_db + run_migration)
   config.py         - Pydantic BaseSettings, all env vars
   database.py       - SQLite engine, init_db, get_session
-  models.py         - SQLModel table definitions
+  models.py         - SQLModel table definitions (User, Artist, UserArtist, ArtistGenre, GenreClassification, UserGenreClassification, UserEvent, Event, EventSource, Match, AccessRequest)
   auth.py           - Spotify OAuth, token encryption, session helpers
   migration.py      - Startup migrations (detect-and-fix), genre profile seeds
   scoring.py        - Auto-scoring (signal weights + genre multipliers), rescoring
@@ -19,7 +19,7 @@ app/
     auth.py         - /login, /callback, /logout, /choose-profile
     artists.py      - /artists, /artist/{id}, /import, progress endpoints
     genres.py       - /genres, /genre/{name}, classify, bulk-classify, reset
-    events.py       - /events with date/city/search filters
+    events.py       - /events list (view + date/city/search filters), /event/{id} detail, /event/{id}/save and /unsave
     admin.py        - /admin, background event fetch + matching trigger
 
   scrapers/         - See app/scrapers/README.md

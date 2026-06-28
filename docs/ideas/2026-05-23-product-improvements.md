@@ -39,6 +39,8 @@ Artist detail page always links back to `/artists` even when you came from event
 ### "Interested / Going" flags
 Let users mark events as interested/going. Show which friends have flagged the same event. Needs one new table: `EventInterest(user_id, event_id, status)`. This is the thing that tips "maybe" to "yes."
 
+> **Partially shipped 2026-06-28** as single-state private saves (`UserEvent`) — see `docs/plans/2026-06-28-feat-per-user-saved-events-plan.md`. The schema's nullable `status` column reserves room for the multi-state (`booked` / `dismissed` / `going`) and social-visibility extensions described above; v1 is private and binary.
+
 ### Group night out scoring
 Already sketched in `docs/ideas/todo/2026-03-30-group-party-scoring.md`. Merge scores across friends, show per-person breakdown. Viral growth — every group member is a new user.
 
