@@ -39,6 +39,7 @@ cyan "==> Deploying $LOCAL_SHA on $SSH_HOST"
 ssh -i "$SSH_KEY" "$SSH_HOST" "
   set -e
   sudo -u deploy bash -lc '
+    set -euo pipefail
     cd $SERVER_PATH
     git fetch --quiet origin
     git reset --hard origin/$BRANCH
